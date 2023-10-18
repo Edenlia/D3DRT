@@ -11,7 +11,9 @@
 
 #pragma once
 
-#include "../DXSample.h"
+#include "./DXSample.h"
+
+using namespace DirectX;
 
 // Note that while ComPtr is used to manage the lifetime of resources on the CPU,
 // it has no understanding of the lifetime of resources on the GPU. Apps must account
@@ -20,29 +22,53 @@
 // An example of this can be found in the class method: OnDestroy().
 using Microsoft::WRL::ComPtr;
 
-class D3D12HelloWindow : public DXSample
+class D3DRTWindow : public DXSample
 {
 public:
-    D3D12HelloWindow(UINT width, UINT height, std::wstring name);
+    D3DRTWindow(UINT width, UINT height, std::wstring name);
 
     virtual void OnInit();
     virtual void OnUpdate();
     virtual void OnRender();
     virtual void OnDestroy();
 
+    ComPtr<ID3D12Resource> CreateDefaultBuffer(
+		const void* const initData,
+		const UINT64 byteSize,
+		ComPtr<ID3D12Resource>& uploadBuffer);
+
 private:
+    struct Vertex
+    {
+        XMFLOAT3 POSITION;
+        XMFLOAT4 COLOR;
+    };
+
     static const UINT FrameCount = 2;
 
     // Pipeline objects.
+    CD3DX12_VIEWPORT m_viewport;
+    CD3DX12_RECT m_scissorRect;
     ComPtr<IDXGISwapChain3> m_swapChain;
     ComPtr<ID3D12Device> m_device;
     ComPtr<ID3D12Resource> m_renderTargets[FrameCount];
     ComPtr<ID3D12CommandAllocator> m_commandAllocator;
     ComPtr<ID3D12CommandQueue> m_commandQueue;
+    ComPtr<ID3D12RootSignature> m_rootSignature;
     ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
     ComPtr<ID3D12PipelineState> m_pipelineState;
     ComPtr<ID3D12GraphicsCommandList> m_commandList;
     UINT m_rtvDescriptorSize;
+
+    // App resources.
+    ComPtr<ID3D12Resource> m_vertexUploadBuffer;
+    ComPtr<ID3D12Resource> m_vertexDefaultBuffer;
+    D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
+    ComPtr<ID3DBlob> m_vertexCpuBuffer;
+    ComPtr<ID3D12Resource> m_indexUploadBuffer;
+    ComPtr<ID3D12Resource> m_indexDefaultBuffer;
+    D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
+    ComPtr<ID3DBlob> m_indexCpuBuffer;
 
     // Synchronization objects.
     UINT m_frameIndex;

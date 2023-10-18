@@ -16,6 +16,9 @@ HWND Win32Application::m_hwnd = nullptr;
 
 int Win32Application::Run(DXSample* pSample, HINSTANCE hInstance, int nCmdShow)
 {
+    // Initialize RenderTime
+    auto* renderTime = new RenderTime();
+
     // Parse the command line parameters
     int argc;
     LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
@@ -29,7 +32,7 @@ int Win32Application::Run(DXSample* pSample, HINSTANCE hInstance, int nCmdShow)
     windowClass.lpfnWndProc = WindowProc;
     windowClass.hInstance = hInstance;
     windowClass.hCursor = LoadCursor(NULL, IDC_ARROW);
-    windowClass.lpszClassName = L"DXSampleClass";
+    windowClass.lpszClassName = L"D3DRTWnd";
     RegisterClassEx(&windowClass);
 
     RECT windowRect = { 0, 0, static_cast<LONG>(pSample->GetWidth()), static_cast<LONG>(pSample->GetHeight()) };
@@ -59,6 +62,7 @@ int Win32Application::Run(DXSample* pSample, HINSTANCE hInstance, int nCmdShow)
     while (msg.message != WM_QUIT)
     {
         // Process any messages in the queue.
+        // TODO: Why message=15 is always in the queue?
         if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
         {
             TranslateMessage(&msg);
@@ -70,6 +74,31 @@ int Win32Application::Run(DXSample* pSample, HINSTANCE hInstance, int nCmdShow)
 
     // Return this part of the WM_QUIT message to Windows.
     return static_cast<char>(msg.wParam);
+}
+
+void Win32Application::CalculateFrameStats(const std::wstring& title, RenderTime* const renderTime)
+{
+    static int frameCnt = 0;
+	static float timeElapsed = 0.0f;
+
+	frameCnt++;
+
+	// Compute averages over one second period.
+    if ((renderTime->GetTotalTime() - timeElapsed) >= 1.0f)
+    {
+		float fps = (float)frameCnt; // fps = frameCnt / 1
+		float mspf = 1000.0f / fps; // milliseconds per frame
+
+		std::wstring fpsStr = std::to_wstring(fps);
+		std::wstring mspfStr = std::to_wstring(mspf);
+
+		std::wstring windowText = title + L" FPS: " + fpsStr + L"   " + L"Frame Time: " + mspfStr + L" (ms)";
+		SetWindowText(m_hwnd, windowText.c_str());
+
+		// Reset for next average.
+		frameCnt = 0;
+		timeElapsed += 1.0f;
+	}
 }
 
 // Main message handler for the sample.

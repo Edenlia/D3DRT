@@ -4,24 +4,35 @@
     <Filter Include="Display">
       <UniqueIdentifier>{abf8b60a-eca1-4dd5-b7f7-922244032f01}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Assets">
+      <UniqueIdentifier>{cca49638-a4ad-4e89-9078-3f8c85a06fec}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Assets\Shaders">
+      <UniqueIdentifier>{631ecf09-604e-4ddf-b25e-edbcbaec9a71}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Display\D3D12HelloWindow.cpp">
-      <Filter>Display</Filter>
-    </ClCompile>
     <ClCompile Include="DXSample.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="stdafx.cpp" />
     <ClCompile Include="Win32Application.cpp" />
+    <ClCompile Include="D3DRTWindow.cpp" />
+    <ClCompile Include="RenderTime.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Display\D3D12HelloWindow.h">
-      <Filter>Display</Filter>
-    </ClInclude>
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="DXSample.h" />
     <ClInclude Include="DXSampleHelper.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="Win32Application.h" />
+    <ClInclude Include="D3DRTWindow.h" />
+    <ClInclude Include="RenderTime.h" />
+    <ClInclude Include="UploadBufferResource.h" />
+    <ClInclude Include="D3DUtil.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="Shaders\shaders.hlsl">
+      <Filter>Assets\Shaders</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>
