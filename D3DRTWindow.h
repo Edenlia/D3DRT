@@ -9,9 +9,14 @@
 //
 //*********************************************************
 
-#pragma once
+#ifndef _D3DRT_WINDOWS_H_
+#define _D3DRT_WINDOWS_H_
 
-#include "./DXSample.h"
+#include "DXSample.h"
+#include <dxcapi.h>
+#include <vector>
+#include "./DXRHelpers/nv_helpers_dx12/TopLevelASGenerator.h"
+#include "./DXRHelpers/nv_helpers_dx12/BottomLevelASGenerator.h"
 
 using namespace DirectX;
 
@@ -31,6 +36,7 @@ public:
     virtual void OnUpdate();
     virtual void OnRender();
     virtual void OnDestroy();
+    virtual void OnKeyUp(UINT8 key);
 
     ComPtr<ID3D12Resource> CreateDefaultBuffer(
 		const void* const initData,
@@ -44,20 +50,28 @@ private:
         XMFLOAT4 COLOR;
     };
 
+    // #DXR
+    struct AccelerationStructureBuffers
+    {
+        ComPtr<ID3D12Resource> pScratch;      // Scratch memory for AS builder
+        ComPtr<ID3D12Resource> pResult;       // Where the AS is
+        ComPtr<ID3D12Resource> pInstanceDesc; // Hold the matrices of the instances
+    };
+
     static const UINT FrameCount = 2;
 
     // Pipeline objects.
     CD3DX12_VIEWPORT m_viewport;
     CD3DX12_RECT m_scissorRect;
     ComPtr<IDXGISwapChain3> m_swapChain;
-    ComPtr<ID3D12Device> m_device;
+    ComPtr<ID3D12Device5> m_device;
     ComPtr<ID3D12Resource> m_renderTargets[FrameCount];
     ComPtr<ID3D12CommandAllocator> m_commandAllocator;
     ComPtr<ID3D12CommandQueue> m_commandQueue;
     ComPtr<ID3D12RootSignature> m_rootSignature;
     ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
     ComPtr<ID3D12PipelineState> m_pipelineState;
-    ComPtr<ID3D12GraphicsCommandList> m_commandList;
+    ComPtr<ID3D12GraphicsCommandList4> m_commandList;
     UINT m_rtvDescriptorSize;
 
     // App resources.
@@ -75,9 +89,22 @@ private:
     HANDLE m_fenceEvent;
     ComPtr<ID3D12Fence> m_fence;
     UINT64 m_fenceValue;
+    bool m_raster = true;
+
+    // #DXR acceleration structure
+    ComPtr<ID3D12Resource> m_bottomLevelAS; // Storage for the bottom Level AS
+    nv_helpers_dx12::TopLevelASGenerator m_topLevelASGenerator; // Helper to generate all the steps required to build a TLAS
+    AccelerationStructureBuffers m_topLevelASBuffers; // Scratch buffers for the top Level AS
+    std::vector<std::pair<ComPtr<ID3D12Resource>, DirectX::XMMATRIX>> m_instances;
 
     void LoadPipeline();
     void LoadAssets();
     void PopulateCommandList();
     void WaitForPreviousFrame();
+    void CheckRaytracingSupport();
+    D3DRTWindow::AccelerationStructureBuffers D3DRTWindow::CreateBottomLevelAS(std::vector<std::pair<ComPtr<ID3D12Resource>, uint32_t>> vVertexBuffers);
+    void CreateTopLevelAS(const std::vector<std::pair<ComPtr<ID3D12Resource>, DirectX::XMMATRIX>>& bottomLevelASInstances);
+    void CreateAccelerationStructures();
 };
+
+#endif // !_D3DRT_WINDOWS_H_

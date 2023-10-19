@@ -105,14 +105,16 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>false</ConformanceMode>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <AdditionalIncludeDirectories>$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <DelayLoadDLLs>d3d12.dll</DelayLoadDLLs>
       <AdditionalDependencies>d3d12.lib;dxgi.lib;d3dcompiler.lib;dxguid.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <DelayLoadDLLs>d3d12.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -136,6 +138,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="D3DRTWindow.cpp" />
+    <ClCompile Include="DXRHelpers\nv_helpers_dx12\BottomLevelASGenerator.cpp" />
+    <ClCompile Include="DXRHelpers\nv_helpers_dx12\RaytracingPipelineGenerator.cpp" />
+    <ClCompile Include="DXRHelpers\nv_helpers_dx12\RootSignatureGenerator.cpp" />
+    <ClCompile Include="DXRHelpers\nv_helpers_dx12\ShaderBindingTableGenerator.cpp" />
+    <ClCompile Include="DXRHelpers\nv_helpers_dx12\TopLevelASGenerator.cpp" />
     <ClCompile Include="DXSample.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="RenderTime.cpp" />
@@ -146,6 +153,12 @@
     <ClInclude Include="D3DRTWindow.h" />
     <ClInclude Include="D3DUtil.h" />
     <ClInclude Include="d3dx12.h" />
+    <ClInclude Include="DXRHelpers\DXRHelper.h" />
+    <ClInclude Include="DXRHelpers\nv_helpers_dx12\BottomLevelASGenerator.h" />
+    <ClInclude Include="DXRHelpers\nv_helpers_dx12\RaytracingPipelineGenerator.h" />
+    <ClInclude Include="DXRHelpers\nv_helpers_dx12\RootSignatureGenerator.h" />
+    <ClInclude Include="DXRHelpers\nv_helpers_dx12\ShaderBindingTableGenerator.h" />
+    <ClInclude Include="DXRHelpers\nv_helpers_dx12\TopLevelASGenerator.h" />
     <ClInclude Include="DXSample.h" />
     <ClInclude Include="DXSampleHelper.h" />
     <ClInclude Include="RenderTime.h" />

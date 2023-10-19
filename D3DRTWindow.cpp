@@ -13,6 +13,7 @@
 #include "D3DRTWindow.h"
 #include "D3DUtil.h"
 #include "UploadBufferResource.h"
+#include "./DXRHelpers/DXRHelper.h"
 #include <array>
 #include <memory>
 #include <vector>
@@ -31,6 +32,17 @@ void D3DRTWindow::OnInit()
 {
     LoadPipeline();
     LoadAssets();
+    // Check the raytracing capabilities of the device
+    CheckRaytracingSupport();
+
+    // Setup the acceleration structures (AS) for raytracing. When setting up
+    // geometry, each bottom-level AS has its own transform matrix.
+    CreateAccelerationStructures();
+
+    // Command lists are created in the recording state, but there is
+    // nothing to record yet. The main loop expects it to be closed, so
+    // close it now.
+    ThrowIfFailed(m_commandList->Close());
 }
 
 // Load the rendering pipeline dependencies.
@@ -63,7 +75,7 @@ void D3DRTWindow::LoadPipeline()
 
         ThrowIfFailed(D3D12CreateDevice(
             warpAdapter.Get(),
-            D3D_FEATURE_LEVEL_11_0,
+            D3D_FEATURE_LEVEL_12_1,
             IID_PPV_ARGS(&m_device)
             ));
     }
@@ -74,7 +86,7 @@ void D3DRTWindow::LoadPipeline()
 
         ThrowIfFailed(D3D12CreateDevice(
             hardwareAdapter.Get(),
-            D3D_FEATURE_LEVEL_11_0,
+            D3D_FEATURE_LEVEL_12_1,
             IID_PPV_ARGS(&m_device)
             ));
     }
@@ -197,10 +209,6 @@ void D3DRTWindow::LoadAssets()
     // Create the command list.
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator.Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
 
-    // Command lists are created in the recording state, but there is nothing
-    // to record yet. The main loop expects it to be closed, so close it now.
-    ThrowIfFailed(m_commandList->Close());
-
     // Create the vertex buffer.
     {
         // Define the geometry for a triangle.
@@ -287,6 +295,15 @@ void D3DRTWindow::OnDestroy()
     CloseHandle(m_fenceEvent);
 }
 
+void D3DRTWindow::OnKeyUp(UINT8 key)
+{
+    // Alternate between rasterization and raytracing using the spacebar
+    if (key == VK_SPACE)
+    {
+        m_raster = !m_raster;
+    }
+}
+
 ComPtr<ID3D12Resource> D3DRTWindow::CreateDefaultBuffer(const void* const initData, const UINT64 byteSize, ComPtr<ID3D12Resource>& uploadBuffer)
 {
     // Create upload heap, write cpu memory data and send it to defalut heap
@@ -355,17 +372,149 @@ void D3DRTWindow::PopulateCommandList()
     m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
     // Record commands.
-    const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
-    m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-    m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
-    m_commandList->DrawInstanced(3, 1, 0, 0);
+    // #DXR
+    if (m_raster) {
+        const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
+        m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+        m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
+        m_commandList->DrawInstanced(3, 1, 0, 0);
+    }
+    else {
+        const float clearColor[] = { 0.6f, 0.8f, 0.4f, 1.0f };
+        m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+    }
+    
 
     // Indicate that the back buffer will now be used to present.
     m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
     ThrowIfFailed(m_commandList->Close());
 }
+
+//-----------------------------------------------------------------------------
+//
+// Create a bottom-level acceleration structure based on a list of vertex
+// buffers in GPU memory along with their vertex count. The build is then done
+// in 3 steps: gathering the geometry, computing the sizes of the required
+// buffers, and building the actual AS
+//
+D3DRTWindow::AccelerationStructureBuffers D3DRTWindow::CreateBottomLevelAS(std::vector<std::pair<ComPtr<ID3D12Resource>, uint32_t>> vVertexBuffers)
+{
+    nv_helpers_dx12::BottomLevelASGenerator bottomLevelAS;
+    // Adding all vertex buffers and not transforming their position.
+    for (const auto& buffer : vVertexBuffers)
+        bottomLevelAS.AddVertexBuffer(buffer.first.Get(), 0, buffer.second, sizeof(Vertex), 0, 0);
+
+    // The AS build requires some scratch space to store temporary information.
+    // The amount of scratch memory is dependent on the scene complexity.
+    UINT64 scratchSizeInBytes = 0;
+    // The final AS also needs to be stored in addition to the existing vertex
+    // buffers. It size is also dependent on the scene complexity.
+    UINT64 resultSizeInBytes = 0;
+    bottomLevelAS.ComputeASBufferSizes(m_device.Get(), false, &scratchSizeInBytes, &resultSizeInBytes);
+
+    // Once the sizes are obtained, the application is responsible for allocating
+   // the necessary buffers. Since the entire generation will be done on the GPU,
+   // we can directly allocate those on the default heap
+    AccelerationStructureBuffers buffers;
+    buffers.pScratch = nv_helpers_dx12::CreateBuffer(
+        m_device.Get(), scratchSizeInBytes,
+        D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COMMON,
+        nv_helpers_dx12::kDefaultHeapProps);
+    buffers.pResult = nv_helpers_dx12::CreateBuffer(
+        m_device.Get(), resultSizeInBytes,
+        D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+        D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
+        nv_helpers_dx12::kDefaultHeapProps);
+
+    // Build the acceleration structure. Note that this call integrates a barrier
+    // on the generated AS, so that it can be used to compute a top-level AS right
+    // after this method.
+    bottomLevelAS.Generate(m_commandList.Get(), buffers.pScratch.Get(),
+        buffers.pResult.Get(), false, nullptr);
+
+    return buffers;
+}
+
+void D3DRTWindow::CreateTopLevelAS(const std::vector<std::pair<ComPtr<ID3D12Resource>, DirectX::XMMATRIX>>& instances)
+{
+    // Gather all the instances into the builder helper
+    for (size_t i = 0; i < instances.size(); i++) {
+        m_topLevelASGenerator.AddInstance(instances[i].first.Get(),
+            instances[i].second, static_cast<UINT>(i),
+            static_cast<UINT>(0));
+    }
+
+    // As for the bottom-level AS, the building the AS requires some scratch space
+    // to store temporary data in addition to the actual AS. In the case of the
+    // top-level AS, the instance descriptors also need to be stored in GPU
+    // memory. This call outputs the memory requirements for each (scratch,
+    // results, instance descriptors) so that the application can allocate the
+    // corresponding memory
+    UINT64 scratchSize, resultSize, instanceDescsSize;
+
+    m_topLevelASGenerator.ComputeASBufferSizes(m_device.Get(), true, &scratchSize,
+        &resultSize, &instanceDescsSize);
+
+    // Create the scratch and result buffers. Since the build is all done on GPU,
+    // those can be allocated on the default heap
+    m_topLevelASBuffers.pScratch = nv_helpers_dx12::CreateBuffer(
+        m_device.Get(), scratchSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+        nv_helpers_dx12::kDefaultHeapProps);
+    m_topLevelASBuffers.pResult = nv_helpers_dx12::CreateBuffer(
+        m_device.Get(), resultSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+        D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
+        nv_helpers_dx12::kDefaultHeapProps);
+
+    // The buffer describing the instances: ID, shader binding information,
+    // matrices ... Those will be copied into the buffer by the helper through
+    // mapping, so the buffer has to be allocated on the upload heap.
+    m_topLevelASBuffers.pInstanceDesc = nv_helpers_dx12::CreateBuffer(
+        m_device.Get(), instanceDescsSize, D3D12_RESOURCE_FLAG_NONE,
+        D3D12_RESOURCE_STATE_GENERIC_READ, nv_helpers_dx12::kUploadHeapProps);
+
+    // After all the buffers are allocated, or if only an update is required, we
+    // can build the acceleration structure. Note that in the case of the update
+    // we also pass the existing AS as the 'previous' AS, so that it can be
+    // refitted in place.
+    m_topLevelASGenerator.Generate(m_commandList.Get(),
+        m_topLevelASBuffers.pScratch.Get(),
+        m_topLevelASBuffers.pResult.Get(),
+        m_topLevelASBuffers.pInstanceDesc.Get());
+}
+
+void D3DRTWindow::CreateAccelerationStructures()
+{
+    // Build the bottom AS from the Triangle vertex buffer
+    AccelerationStructureBuffers bottomLevelBuffers =
+        CreateBottomLevelAS({ {m_vertexUploadBuffer.Get(), 3} });
+
+    // Just one instance for now
+    m_instances = { {bottomLevelBuffers.pResult, XMMatrixIdentity()} };
+    CreateTopLevelAS(m_instances);
+
+    // Flush the command list and wait for it to finish
+    m_commandList->Close();
+    ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
+    m_commandQueue->ExecuteCommandLists(1, ppCommandLists);
+    m_fenceValue++;
+    m_commandQueue->Signal(m_fence.Get(), m_fenceValue);
+
+    m_fence->SetEventOnCompletion(m_fenceValue, m_fenceEvent);
+    WaitForSingleObject(m_fenceEvent, INFINITE);
+
+    // Once the command list is finished executing, reset it to be reused for
+    // rendering
+    ThrowIfFailed(
+        m_commandList->Reset(m_commandAllocator.Get(), m_pipelineState.Get()));
+
+    // Store the AS buffers. The rest of the buffers will be released once we exit
+    // the function
+    m_bottomLevelAS = bottomLevelBuffers.pResult;
+}
+
 
 void D3DRTWindow::WaitForPreviousFrame()
 {
@@ -387,4 +536,13 @@ void D3DRTWindow::WaitForPreviousFrame()
     }
 
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
+}
+
+void D3DRTWindow::CheckRaytracingSupport()
+{
+    D3D12_FEATURE_DATA_D3D12_OPTIONS5 options5 = {};
+    ThrowIfFailed(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5,
+        &options5, sizeof(options5)));
+    if (options5.RaytracingTier < D3D12_RAYTRACING_TIER_1_0)
+        throw std::runtime_error("Raytracing not supported on device");
 }
