@@ -10,6 +10,12 @@
     <Filter Include="Assets\Shaders">
       <UniqueIdentifier>{631ecf09-604e-4ddf-b25e-edbcbaec9a71}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Assets\Shaders\RayTracing">
+      <UniqueIdentifier>{0d1a2892-3d98-44bd-a29a-27bee037c426}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Assets\Shaders\Rasterization">
+      <UniqueIdentifier>{ce8a716a-95eb-454a-b225-4aed81ac5ba3}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DXSample.cpp" />
@@ -18,6 +24,11 @@
     <ClCompile Include="Win32Application.cpp" />
     <ClCompile Include="D3DRTWindow.cpp" />
     <ClCompile Include="RenderTime.cpp" />
+    <ClCompile Include="DXRHelpers\nv_helpers_dx12\BottomLevelASGenerator.cpp" />
+    <ClCompile Include="DXRHelpers\nv_helpers_dx12\RaytracingPipelineGenerator.cpp" />
+    <ClCompile Include="DXRHelpers\nv_helpers_dx12\RootSignatureGenerator.cpp" />
+    <ClCompile Include="DXRHelpers\nv_helpers_dx12\ShaderBindingTableGenerator.cpp" />
+    <ClCompile Include="DXRHelpers\nv_helpers_dx12\TopLevelASGenerator.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="d3dx12.h" />
@@ -29,10 +40,34 @@
     <ClInclude Include="RenderTime.h" />
     <ClInclude Include="UploadBufferResource.h" />
     <ClInclude Include="D3DUtil.h" />
+    <ClInclude Include="DXRHelpers\DXRHelper.h" />
+    <ClInclude Include="DXRHelpers\nv_helpers_dx12\BottomLevelASGenerator.h" />
+    <ClInclude Include="DXRHelpers\nv_helpers_dx12\RaytracingPipelineGenerator.h" />
+    <ClInclude Include="DXRHelpers\nv_helpers_dx12\RootSignatureGenerator.h" />
+    <ClInclude Include="DXRHelpers\nv_helpers_dx12\ShaderBindingTableGenerator.h" />
+    <ClInclude Include="DXRHelpers\nv_helpers_dx12\TopLevelASGenerator.h" />
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="Shaders\shaders.hlsl">
-      <Filter>Assets\Shaders</Filter>
+    <CustomBuild Include="Shaders\RastShaders.hlsl">
+      <Filter>Assets\Shaders\Rasterization</Filter>
     </CustomBuild>
+    <CustomBuild Include="Shaders\Common.hlsl">
+      <Filter>Assets\Shaders\RayTracing</Filter>
+    </CustomBuild>
+    <CustomBuild Include="Shaders\Hit.hlsl">
+      <Filter>Assets\Shaders\RayTracing</Filter>
+    </CustomBuild>
+    <CustomBuild Include="Shaders\Miss.hlsl">
+      <Filter>Assets\Shaders\RayTracing</Filter>
+    </CustomBuild>
+    <CustomBuild Include="Shaders\RayGen.hlsl">
+      <Filter>Assets\Shaders\RayTracing</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="dxil.dll" />
+  </ItemGroup>
+  <ItemGroup>
+    <CopyFileToFolders Include="dxcompiler.dll" />
   </ItemGroup>
 </Project>

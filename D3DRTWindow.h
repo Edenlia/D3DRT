@@ -17,6 +17,7 @@
 #include <vector>
 #include "./DXRHelpers/nv_helpers_dx12/TopLevelASGenerator.h"
 #include "./DXRHelpers/nv_helpers_dx12/BottomLevelASGenerator.h"
+#include "./DXRHelpers/nv_helpers_dx12/ShaderBindingTableGenerator.h"
 
 using namespace DirectX;
 
@@ -84,6 +85,23 @@ private:
     D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
     ComPtr<ID3DBlob> m_indexCpuBuffer;
 
+    // #DXR
+    ComPtr<IDxcBlob> m_rayGenLibrary;
+    ComPtr<IDxcBlob> m_hitLibrary;
+    ComPtr<IDxcBlob> m_missLibrary;
+    ComPtr<ID3D12RootSignature> m_rayGenSignature;
+    ComPtr<ID3D12RootSignature> m_hitSignature;
+    ComPtr<ID3D12RootSignature> m_missSignature;
+    ComPtr<ID3D12Resource> m_outputResource;
+    ComPtr<ID3D12DescriptorHeap> m_srvUavHeap;
+
+    // Ray tracing pipeline state
+    ComPtr<ID3D12StateObject> m_rtStateObject;
+    // Ray tracing pipeline state properties, retaining the shader identifiers
+    // to use in the Shader Binding Table
+    ComPtr<ID3D12StateObjectProperties> m_rtStateObjectProps;
+
+
     // Synchronization objects.
     UINT m_frameIndex;
     HANDLE m_fenceEvent;
@@ -96,6 +114,9 @@ private:
     nv_helpers_dx12::TopLevelASGenerator m_topLevelASGenerator; // Helper to generate all the steps required to build a TLAS
     AccelerationStructureBuffers m_topLevelASBuffers; // Scratch buffers for the top Level AS
     std::vector<std::pair<ComPtr<ID3D12Resource>, DirectX::XMMATRIX>> m_instances;
+    // #DXR shader table
+    nv_helpers_dx12::ShaderBindingTableGenerator m_sbtHelper;
+    ComPtr<ID3D12Resource> m_sbtStorage;
 
     void LoadPipeline();
     void LoadAssets();
@@ -105,6 +126,17 @@ private:
     D3DRTWindow::AccelerationStructureBuffers D3DRTWindow::CreateBottomLevelAS(std::vector<std::pair<ComPtr<ID3D12Resource>, uint32_t>> vVertexBuffers);
     void CreateTopLevelAS(const std::vector<std::pair<ComPtr<ID3D12Resource>, DirectX::XMMATRIX>>& bottomLevelASInstances);
     void CreateAccelerationStructures();
+
+    // #DXR
+    ComPtr<ID3D12RootSignature> CreateRayGenSignature();
+    ComPtr<ID3D12RootSignature> CreateHitSignature();
+    ComPtr<ID3D12RootSignature> CreateMissSignature();
+    void CreateRaytracingOutputBuffer();
+    void CreateShaderResourceHeap();
+    void CreateShaderBindingTable();
+    
+    void CreateRaytracingPipeline();
+
 };
 
 #endif // !_D3DRT_WINDOWS_H_
