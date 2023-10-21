@@ -39,6 +39,10 @@ public:
     virtual void OnDestroy();
     virtual void OnKeyUp(UINT8 key);
 
+    // #DXR Extra: Perspective Camera++
+    void OnButtonDown(UINT32 lParam);
+    void OnMouseMove(UINT8 wParam, UINT32 lParam);
+
     ComPtr<ID3D12Resource> CreateDefaultBuffer(
 		const void* const initData,
 		const UINT64 byteSize,
@@ -95,6 +99,11 @@ private:
     ComPtr<ID3D12Resource> m_outputResource;
     ComPtr<ID3D12DescriptorHeap> m_srvUavHeap;
 
+    // #DXR Extra: Perspective Camera
+    ComPtr< ID3D12Resource > m_cameraBuffer;
+    ComPtr< ID3D12DescriptorHeap > m_constHeap;
+    uint32_t m_cameraBufferSize = 0;
+
     // Ray tracing pipeline state
     ComPtr<ID3D12StateObject> m_rtStateObject;
     // Ray tracing pipeline state properties, retaining the shader identifiers
@@ -136,6 +145,10 @@ private:
     void CreateShaderBindingTable();
     
     void CreateRaytracingPipeline();
+
+    // #DXR Extra: Perspective Camera
+    void CreateCameraBuffer();
+    void UpdateCameraBuffer();
 
 };
 

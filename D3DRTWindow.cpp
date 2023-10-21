@@ -20,11 +20,9 @@
 #include <string>
 #include "./DXRHelpers/nv_helpers_dx12/RaytracingPipelineGenerator.h"   
 #include "./DXRHelpers/nv_helpers_dx12/RootSignatureGenerator.h"
-
-namespace nv_helpers_dx12
-{
-    
-}
+#include "glm/gtc/type_ptr.hpp"
+#include "manipulator.h"
+#include "Windowsx.h"
 
 D3DRTWindow::D3DRTWindow(UINT width, UINT height, std::wstring name) :
     DXSample(width, height, name),
@@ -37,6 +35,9 @@ D3DRTWindow::D3DRTWindow(UINT width, UINT height, std::wstring name) :
 
 void D3DRTWindow::OnInit()
 {
+    nv_helpers_dx12::CameraManip.setWindowSize(GetWidth(), GetHeight());
+    nv_helpers_dx12::CameraManip.setLookat(glm::vec3(1.5f, 1.5f, 1.5f), glm::vec3(0, 0, 0),
+        glm::vec3(0, 1, 0));
     LoadPipeline();
     LoadAssets();
     // Check the raytracing capabilities of the device
@@ -54,6 +55,10 @@ void D3DRTWindow::OnInit()
     // Allocate the buffer storing the raytracing output, with the same dimensions
     // as the target image
     CreateRaytracingOutputBuffer(); // #DXR
+
+    // #DXR Extra: Perspective Camera
+    // Create a buffer to store the modelview and perspective camera matrices
+    CreateCameraBuffer();
 
     // Create the buffer containing the raytracing result (always output in a
     // UAV), and create the heap referencing the resources used by the raytracing,
@@ -181,10 +186,22 @@ void D3DRTWindow::LoadPipeline()
 // Load the sample assets.
 void D3DRTWindow::LoadAssets()
 {
-    // Create an empty root signature.
+    
+
+    // #DXR Extra: Perspective Camera
+    // The root signature describes which data is accessed by the shader. The camera matrices are held
+    // in a constant buffer, itself referenced the heap. To do this we reference a range in the heap,
+    // and use that range as the sole parameter of the shader. The camera buffer is associated in the
+    // index 0, making it accessible in the shader in the b0 register.
     {
+        CD3DX12_ROOT_PARAMETER constantParameter;
+        CD3DX12_DESCRIPTOR_RANGE range;
+        range.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
+        constantParameter.InitAsDescriptorTable(1, &range, D3D12_SHADER_VISIBILITY_ALL);
+
         CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
-        rootSignatureDesc.Init(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+        rootSignatureDesc.Init(1, &constantParameter, 0, nullptr,
+            D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
         ComPtr<ID3DBlob> signature;
         ComPtr<ID3DBlob> error;
@@ -294,6 +311,8 @@ void D3DRTWindow::LoadAssets()
 // Update frame-based values.
 void D3DRTWindow::OnUpdate()
 {
+    // #DXR Extra: Perspective Camera
+    UpdateCameraBuffer();
 }
 
 // Render the scene.
@@ -328,6 +347,28 @@ void D3DRTWindow::OnKeyUp(UINT8 key)
     {
         m_raster = !m_raster;
     }
+}
+
+void D3DRTWindow::OnButtonDown(UINT32 lParam)
+{
+    nv_helpers_dx12::CameraManip.setMousePosition(-GET_X_LPARAM(lParam), -GET_Y_LPARAM(lParam));
+}
+
+void D3DRTWindow::OnMouseMove(UINT8 wParam, UINT32 lParam)
+{
+    using nv_helpers_dx12::Manipulator;
+    Manipulator::Inputs inputs;
+    inputs.lmb = wParam & MK_LBUTTON;
+    inputs.mmb = wParam & MK_MBUTTON;
+    inputs.rmb = wParam & MK_RBUTTON;
+    if (!inputs.lmb && !inputs.rmb && !inputs.mmb)
+        return; // no mouse button pressed
+
+    inputs.ctrl = GetAsyncKeyState(VK_CONTROL);
+    inputs.shift = GetAsyncKeyState(VK_SHIFT);
+    inputs.alt = GetAsyncKeyState(VK_MENU);
+
+    CameraManip.mouseMove(-GET_X_LPARAM(lParam), -GET_Y_LPARAM(lParam), inputs);
 }
 
 ComPtr<ID3D12Resource> D3DRTWindow::CreateDefaultBuffer(const void* const initData, const UINT64 byteSize, ComPtr<ID3D12Resource>& uploadBuffer)
@@ -400,6 +441,12 @@ void D3DRTWindow::PopulateCommandList()
     // Record commands.
     // #DXR
     if (m_raster) {
+        // #DXR Extra: Perspective Camera
+        std::vector< ID3D12DescriptorHeap* > heaps = { m_constHeap.Get() };
+        m_commandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
+        // set the root descriptor table 0 to the constant buffer descriptor heap
+        m_commandList->SetGraphicsRootDescriptorTable(
+            0, m_constHeap->GetGPUDescriptorHandleForHeapStart());
         const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
         m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
         m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -568,10 +615,11 @@ void D3DRTWindow::CreateRaytracingOutputBuffer()
 //
 void D3DRTWindow::CreateShaderResourceHeap()
 {
-    // Create a SRV/UAV/CBV descriptor heap. We need 2 entries - 1 UAV for the
-    // raytracing output and 1 SRV for the TLAS
+    // #DXR Extra: Perspective Camera
+    // Create a SRV/UAV/CBV descriptor heap. We need 3 entries - 1 SRV for the TLAS, 1 UAV for the
+    // raytracing output and 1 CBV for the camera matrices
     m_srvUavHeap = nv_helpers_dx12::CreateDescriptorHeap(
-        m_device.Get(), 2, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+        m_device.Get(), 3, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 
     // Get a handle to the heap memory on the CPU side, to be able to write the
     // descriptors directly
@@ -590,6 +638,7 @@ void D3DRTWindow::CreateShaderResourceHeap()
     srvHandle.ptr += m_device->GetDescriptorHandleIncrementSize(
         D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
+
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
     srvDesc.Format = DXGI_FORMAT_UNKNOWN;
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;
@@ -598,6 +647,17 @@ void D3DRTWindow::CreateShaderResourceHeap()
         m_topLevelASBuffers.pResult->GetGPUVirtualAddress();
     // Write the acceleration structure view in the heap
     m_device->CreateShaderResourceView(nullptr, &srvDesc, srvHandle);
+
+    // #DXR Extra: Perspective Camera
+    // Add the constant buffer for the camera after the TLAS
+    srvHandle.ptr +=
+        m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+    // Describe and create a constant buffer view for the camera
+    D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+    cbvDesc.BufferLocation = m_cameraBuffer->GetGPUVirtualAddress();
+    cbvDesc.SizeInBytes = m_cameraBufferSize;
+    m_device->CreateConstantBufferView(&cbvDesc, srvHandle);
 }
 
 //-----------------------------------------------------------------------------
@@ -709,7 +769,9 @@ void D3DRTWindow::CreateAccelerationStructures()
         CreateBottomLevelAS({ {m_vertexUploadBuffer.Get(), 3} });
 
     // Just one instance for now
-    m_instances = { {bottomLevelBuffers.pResult, XMMatrixIdentity()} };
+    m_instances = { {bottomLevelBuffers.pResult, XMMatrixIdentity()},
+               {bottomLevelBuffers.pResult, XMMatrixTranslation(-.6f, 0, 0)},
+               {bottomLevelBuffers.pResult, XMMatrixTranslation(.6f, 0, 0)} };
     CreateTopLevelAS(m_instances);
 
     // Flush the command list and wait for it to finish
@@ -772,11 +834,10 @@ ComPtr<ID3D12RootSignature> D3DRTWindow::CreateRayGenSignature() {
     nv_helpers_dx12::RootSignatureGenerator rsc;
     rsc.AddHeapRangesParameter(
         { {0 /*u0*/, 1 /*1 descriptor */, 0 /*use the implicit register space 0*/,
-          D3D12_DESCRIPTOR_RANGE_TYPE_UAV /* UAV representing the output buffer*/,
-          0 /*heap slot where the UAV is defined*/},
-         {0 /*t0*/, 1, 0,
-          D3D12_DESCRIPTOR_RANGE_TYPE_SRV /*Top-level acceleration structure*/,
-          1} });
+        D3D12_DESCRIPTOR_RANGE_TYPE_UAV /* UAV representing the output buffer*/,
+        0 /*heap slot where the UAV is defined*/},
+       {0 /*t0*/, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV /*Top-level acceleration structure*/, 1},
+       {0 /*b0*/, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV /*Camera parameters*/, 2} });
 
     return rsc.Generate(m_device.Get(), true);
 }
@@ -893,4 +954,69 @@ void D3DRTWindow::CreateRaytracingPipeline() {
     // Cast the state object into a properties object, allowing to later access
     // the shader pointers by name
     ThrowIfFailed(m_rtStateObject->QueryInterface(IID_PPV_ARGS(&m_rtStateObjectProps)));
+}
+
+//----------------------------------------------------------------------------------
+//
+// The camera buffer is a constant buffer that stores the transform matrices of
+// the camera, for use by both the rasterization and raytracing. This method
+// allocates the buffer where the matrices will be copied. For the sake of code
+// clarity, it also creates a heap containing only this buffer, to use in the
+// rasterization path.
+//
+// #DXR Extra: Perspective Camera
+void D3DRTWindow::CreateCameraBuffer()
+{
+    uint32_t nbMatrix = 4; // view, perspective, viewInv, perspectiveInv
+    m_cameraBufferSize = nbMatrix * sizeof(XMMATRIX);
+
+    // Create the constant buffer for all matrices
+    m_cameraBuffer = nv_helpers_dx12::CreateBuffer(
+        m_device.Get(), m_cameraBufferSize, D3D12_RESOURCE_FLAG_NONE,
+        D3D12_RESOURCE_STATE_GENERIC_READ, nv_helpers_dx12::kUploadHeapProps);
+
+    // Create a descriptor heap that will be used by the rasterization shaders
+    m_constHeap = nv_helpers_dx12::CreateDescriptorHeap(
+        m_device.Get(), 1, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+
+    // Describe and create the constant buffer view.
+    D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+    cbvDesc.BufferLocation = m_cameraBuffer->GetGPUVirtualAddress();
+    cbvDesc.SizeInBytes = m_cameraBufferSize;
+
+    // Get a handle to the heap memory on the CPU side, to be able to write the
+    // descriptors directly
+    D3D12_CPU_DESCRIPTOR_HANDLE srvHandle =
+        m_constHeap->GetCPUDescriptorHandleForHeapStart();
+    m_device->CreateConstantBufferView(&cbvDesc, srvHandle);
+}
+
+void D3DRTWindow::UpdateCameraBuffer()
+{
+    std::vector<XMMATRIX> matrices(4);
+
+    // Initialize the view matrix, ideally this should be based on user
+    // interactions The lookat and perspective matrices used for rasterization are
+    // defined to transform world-space vertices into a [0,1]x[0,1]x[0,1] camera
+    // space
+    const glm::mat4& mat = nv_helpers_dx12::CameraManip.getMatrix();
+    memcpy(&matrices[0].r->m128_f32[0], glm::value_ptr(mat), 16 * sizeof(float));
+
+
+    float fovAngleY = 45.0f * XM_PI / 180.0f;
+    matrices[1] =
+        XMMatrixPerspectiveFovRH(fovAngleY, m_aspectRatio, 0.1f, 1000.0f);
+
+    // Raytracing has to do the contrary of rasterization: rays are defined in
+    // camera space, and are transformed into world space. To do this, we need to
+    // store the inverse matrices as well.
+    XMVECTOR det;
+    matrices[2] = XMMatrixInverse(&det, matrices[0]);
+    matrices[3] = XMMatrixInverse(&det, matrices[1]);
+
+    // Copy the matrix contents
+    uint8_t* pData;
+    ThrowIfFailed(m_cameraBuffer->Map(0, nullptr, (void**)&pData));
+    memcpy(pData, matrices.data(), m_cameraBufferSize);
+    m_cameraBuffer->Unmap(0, nullptr);
 }

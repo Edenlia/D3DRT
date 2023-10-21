@@ -29,6 +29,7 @@
     <ClCompile Include="DXRHelpers\nv_helpers_dx12\RootSignatureGenerator.cpp" />
     <ClCompile Include="DXRHelpers\nv_helpers_dx12\ShaderBindingTableGenerator.cpp" />
     <ClCompile Include="DXRHelpers\nv_helpers_dx12\TopLevelASGenerator.cpp" />
+    <ClCompile Include="manipulator.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="d3dx12.h" />
@@ -46,6 +47,7 @@
     <ClInclude Include="DXRHelpers\nv_helpers_dx12\RootSignatureGenerator.h" />
     <ClInclude Include="DXRHelpers\nv_helpers_dx12\ShaderBindingTableGenerator.h" />
     <ClInclude Include="DXRHelpers\nv_helpers_dx12\TopLevelASGenerator.h" />
+    <ClInclude Include="manipulator.h" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="Shaders\RastShaders.hlsl">
