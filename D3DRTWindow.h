@@ -104,6 +104,13 @@ private:
     ComPtr< ID3D12DescriptorHeap > m_constHeap;
     uint32_t m_cameraBufferSize = 0;
 
+    // #DXR Extra: Per-Instance Data
+    ComPtr<ID3D12Resource> m_planeBuffer;
+    D3D12_VERTEX_BUFFER_VIEW m_planeBufferView;
+    ComPtr<ID3D12Resource> m_globalConstantBuffer;
+    std::vector<ComPtr<ID3D12Resource>> m_perInstanceConstantBuffers;
+
+
     // Ray tracing pipeline state
     ComPtr<ID3D12StateObject> m_rtStateObject;
     // Ray tracing pipeline state properties, retaining the shader identifiers
@@ -123,6 +130,7 @@ private:
     nv_helpers_dx12::TopLevelASGenerator m_topLevelASGenerator; // Helper to generate all the steps required to build a TLAS
     AccelerationStructureBuffers m_topLevelASBuffers; // Scratch buffers for the top Level AS
     std::vector<std::pair<ComPtr<ID3D12Resource>, DirectX::XMMATRIX>> m_instances;
+
     // #DXR shader table
     nv_helpers_dx12::ShaderBindingTableGenerator m_sbtHelper;
     ComPtr<ID3D12Resource> m_sbtStorage;
@@ -150,6 +158,10 @@ private:
     void CreateCameraBuffer();
     void UpdateCameraBuffer();
 
+    // #DXR Extra: Per-Instance Data
+    void CreatePlaneVB();
+    void CreateGlobalConstantBuffer();
+    void CreatePerInstanceConstantBuffers();
 };
 
 #endif // !_D3DRT_WINDOWS_H_
