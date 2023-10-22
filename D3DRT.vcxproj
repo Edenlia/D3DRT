@@ -140,36 +140,38 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="D3DRTWindow.cpp" />
-    <ClCompile Include="DXRHelpers\nv_helpers_dx12\BottomLevelASGenerator.cpp" />
-    <ClCompile Include="DXRHelpers\nv_helpers_dx12\RaytracingPipelineGenerator.cpp" />
-    <ClCompile Include="DXRHelpers\nv_helpers_dx12\RootSignatureGenerator.cpp" />
-    <ClCompile Include="DXRHelpers\nv_helpers_dx12\ShaderBindingTableGenerator.cpp" />
-    <ClCompile Include="DXRHelpers\nv_helpers_dx12\TopLevelASGenerator.cpp" />
-    <ClCompile Include="DXSample.cpp" />
-    <ClCompile Include="Main.cpp" />
-    <ClCompile Include="manipulator.cpp" />
-    <ClCompile Include="RenderTime.cpp" />
-    <ClCompile Include="stdafx.cpp" />
-    <ClCompile Include="Win32Application.cpp" />
+    <ClCompile Include="Source\D3DRTWindow.cpp" />
+    <ClCompile Include="Source\DXRHelpers\nv_helpers_dx12\BottomLevelASGenerator.cpp" />
+    <ClCompile Include="Source\DXRHelpers\nv_helpers_dx12\RaytracingPipelineGenerator.cpp" />
+    <ClCompile Include="Source\DXRHelpers\nv_helpers_dx12\RootSignatureGenerator.cpp" />
+    <ClCompile Include="Source\DXRHelpers\nv_helpers_dx12\ShaderBindingTableGenerator.cpp" />
+    <ClCompile Include="Source\DXRHelpers\nv_helpers_dx12\TopLevelASGenerator.cpp" />
+    <ClCompile Include="Source\DXSample.cpp" />
+    <ClCompile Include="Source\Main.cpp" />
+    <ClCompile Include="Source\manipulator.cpp" />
+    <ClCompile Include="Source\RenderTime.cpp" />
+    <ClCompile Include="Source\stdafx.cpp" />
+    <ClCompile Include="Source\Win32Application.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="D3DRTWindow.h" />
-    <ClInclude Include="D3DUtil.h" />
-    <ClInclude Include="d3dx12.h" />
-    <ClInclude Include="DXRHelpers\DXRHelper.h" />
-    <ClInclude Include="DXRHelpers\nv_helpers_dx12\BottomLevelASGenerator.h" />
-    <ClInclude Include="DXRHelpers\nv_helpers_dx12\RaytracingPipelineGenerator.h" />
-    <ClInclude Include="DXRHelpers\nv_helpers_dx12\RootSignatureGenerator.h" />
-    <ClInclude Include="DXRHelpers\nv_helpers_dx12\ShaderBindingTableGenerator.h" />
-    <ClInclude Include="DXRHelpers\nv_helpers_dx12\TopLevelASGenerator.h" />
-    <ClInclude Include="DXSample.h" />
-    <ClInclude Include="DXSampleHelper.h" />
-    <ClInclude Include="manipulator.h" />
-    <ClInclude Include="RenderTime.h" />
-    <ClInclude Include="stdafx.h" />
-    <ClInclude Include="UploadBufferResource.h" />
-    <ClInclude Include="Win32Application.h" />
+    <ClInclude Include="Source\D3DRTWindow.h" />
+    <ClInclude Include="Source\D3DUtil.h" />
+    <ClInclude Include="Source\d3dx12.h" />
+    <ClInclude Include="Source\dxcapi.h" />
+    <ClInclude Include="Source\dxcapi.use.h" />
+    <ClInclude Include="Source\DXRHelpers\DXRHelper.h" />
+    <ClInclude Include="Source\DXRHelpers\nv_helpers_dx12\BottomLevelASGenerator.h" />
+    <ClInclude Include="Source\DXRHelpers\nv_helpers_dx12\RaytracingPipelineGenerator.h" />
+    <ClInclude Include="Source\DXRHelpers\nv_helpers_dx12\RootSignatureGenerator.h" />
+    <ClInclude Include="Source\DXRHelpers\nv_helpers_dx12\ShaderBindingTableGenerator.h" />
+    <ClInclude Include="Source\DXRHelpers\nv_helpers_dx12\TopLevelASGenerator.h" />
+    <ClInclude Include="Source\DXSample.h" />
+    <ClInclude Include="Source\DXSampleHelper.h" />
+    <ClInclude Include="Source\manipulator.h" />
+    <ClInclude Include="Source\RenderTime.h" />
+    <ClInclude Include="Source\stdafx.h" />
+    <ClInclude Include="Source\UploadBufferResource.h" />
+    <ClInclude Include="Source\Win32Application.h" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="Shaders\RastShaders.hlsl">
@@ -211,12 +213,13 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <CopyFileToFolders Include="dxcompiler.dll">
+    <CopyFileToFolders Include="External\dxcompiler.dll">
       <FileType>Document</FileType>
     </CopyFileToFolders>
-    <None Include="dxil.dll">
+    <CopyFileToFolders Include="External\dxil.dll">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
-    </None>
+      <FileType>Document</FileType>
+    </CopyFileToFolders>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
