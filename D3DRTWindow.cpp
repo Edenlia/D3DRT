@@ -264,14 +264,24 @@ void D3DRTWindow::LoadAssets()
     // Create the command list.
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator.Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
 
-    // Create the vertex buffer.
+    // Create the vertex buffer and index buffer.
     {
+        // Vertices
         // Define the geometry for a triangle.
         Vertex triangleVertices[] =
         {
-            { { 0.0f, 0.25f * m_aspectRatio, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
-            { { 0.25f, -0.25f * m_aspectRatio, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
-            { { -0.25f, -0.25f * m_aspectRatio, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } }
+            {
+                {std::sqrtf(8.f / 9.f), 0.f, -1.f / 3.f}, {1.f, 0.f, 0.f, 1.f}
+            },
+            {
+                {-std::sqrtf(2.f / 9.f), std::sqrtf(2.f / 3.f), -1.f / 3.f}, {0.f, 1.f, 0.f, 1.f}
+            },
+            {
+                {-std::sqrtf(2.f / 9.f), -std::sqrtf(2.f / 3.f), -1.f / 3.f}, {0.f, 0.f, 1.f, 1.f}
+            },
+            {
+                {0.f, 0.f, 1.f}, {1, 0, 1, 1}
+            } 
         };
 
         const UINT vertexBufferSize = sizeof(triangleVertices);
@@ -295,11 +305,35 @@ void D3DRTWindow::LoadAssets()
         memcpy(pVertexDataBegin, triangleVertices, sizeof(triangleVertices));
         m_vertexUploadBuffer->Unmap(0, nullptr);
 
+        // Indices
         // Initialize the vertex buffer view.
         m_vertexBufferView.BufferLocation = m_vertexUploadBuffer->GetGPUVirtualAddress();
         m_vertexBufferView.StrideInBytes = sizeof(Vertex);
         m_vertexBufferView.SizeInBytes = vertexBufferSize;
+
+        std::vector<UINT> indices = { 0, 1, 2, 0, 3, 1, 0, 2, 3, 1, 3, 2 };
+        const UINT indexBufferSize = static_cast<UINT>(indices.size()) * sizeof(UINT);
+
+        CD3DX12_HEAP_PROPERTIES heapProperty = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+        CD3DX12_RESOURCE_DESC bufferResource = CD3DX12_RESOURCE_DESC::Buffer(indexBufferSize);
+        ThrowIfFailed(m_device->CreateCommittedResource(
+            &heapProperty, D3D12_HEAP_FLAG_NONE, &bufferResource, //
+            D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_indexUploadBuffer)));
+
+        // Copy the triangle data to the index buffer.
+        UINT8* pIndexDataBegin;
+        ThrowIfFailed(m_indexUploadBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pIndexDataBegin)));
+        memcpy(pIndexDataBegin, indices.data(), indexBufferSize);
+        m_indexUploadBuffer->Unmap(0, nullptr);
+
+        // Initialize the index buffer view.
+        m_indexBufferView.BufferLocation = m_indexUploadBuffer->GetGPUVirtualAddress();
+        m_indexBufferView.Format = DXGI_FORMAT_R32_UINT;
+        m_indexBufferView.SizeInBytes = indexBufferSize;
     }
+
+    // #DXR Extra: Indexed Geometry
+    CreateMengerSpongeVB();
 
     // Create synchronization objects and wait until assets have been uploaded to the GPU.
     {
@@ -468,8 +502,17 @@ void D3DRTWindow::PopulateCommandList()
         m_commandList->IASetVertexBuffers(0, 1, &m_planeBufferView);
         m_commandList->DrawInstanced(6, 1, 0, 0);
 
+        // Indexed triangle rendering
         m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
-        m_commandList->DrawInstanced(3, 1, 0, 0);
+        m_commandList->IASetIndexBuffer(&m_indexBufferView);
+        m_commandList->DrawIndexedInstanced(12, 1, 0, 0, 0);
+
+        // #DXR Extra: Indexed Geometry
+        // In a way similar to triangle rendering, rasterize the Menger Sponge
+        m_commandList->IASetVertexBuffers(0, 1, &m_mengerVBView);
+        m_commandList->IASetIndexBuffer(&m_mengerIBView);
+        m_commandList->DrawIndexedInstanced(m_mengerIndexCount, 1, 0, 0, 0);
+
     }
     else {
         // #DXR
@@ -561,12 +604,26 @@ void D3DRTWindow::PopulateCommandList()
 // in 3 steps: gathering the geometry, computing the sizes of the required
 // buffers, and building the actual AS
 //
-D3DRTWindow::AccelerationStructureBuffers D3DRTWindow::CreateBottomLevelAS(std::vector<std::pair<ComPtr<ID3D12Resource>, uint32_t>> vVertexBuffers)
+D3DRTWindow::AccelerationStructureBuffers D3DRTWindow::CreateBottomLevelAS(
+    std::vector<std::pair<ComPtr<ID3D12Resource>, uint32_t>> vVertexBuffers, 
+    std::vector<std::pair<ComPtr<ID3D12Resource>, uint32_t>> vIndexBuffers)
 {
     nv_helpers_dx12::BottomLevelASGenerator bottomLevelAS;
+
     // Adding all vertex buffers and not transforming their position.
-    for (const auto& buffer : vVertexBuffers)
-        bottomLevelAS.AddVertexBuffer(buffer.first.Get(), 0, buffer.second, sizeof(Vertex), 0, 0);
+    for (size_t i = 0; i < vVertexBuffers.size(); i++) {
+        // for (const auto &buffer : vVertexBuffers) {
+        if (i < vIndexBuffers.size() && vIndexBuffers[i].second > 0)
+            bottomLevelAS.AddVertexBuffer(vVertexBuffers[i].first.Get(), 0,
+                vVertexBuffers[i].second, sizeof(Vertex),
+                vIndexBuffers[i].first.Get(), 0,
+                vIndexBuffers[i].second, nullptr, 0, true);
+
+        else
+            bottomLevelAS.AddVertexBuffer(vVertexBuffers[i].first.Get(), 0,
+                vVertexBuffers[i].second, sizeof(Vertex), 0,
+                0);
+    }
 
     // The AS build requires some scratch space to store temporary information.
     // The amount of scratch memory is dependent on the scene complexity.
@@ -718,12 +775,25 @@ void D3DRTWindow::CreateShaderBindingTable()
     // boolean visibility in the payload, and does not require external data
     for (int i = 0; i < 3; ++i) {
         m_sbtHelper.AddHitGroup(
-            L"HitGroup", { (void*)(m_perInstanceConstantBuffers[i]->GetGPUVirtualAddress()) }
+            L"HitGroup", 
+            { 
+                (void*)(m_perInstanceConstantBuffers[i]->GetGPUVirtualAddress()),
+                (void*)(m_vertexUploadBuffer->GetGPUVirtualAddress()),
+                (void*)(m_indexUploadBuffer->GetGPUVirtualAddress()) 
+            }
         );
     }
 
     // The plane also uses a constant buffer for its vertex colors
     m_sbtHelper.AddHitGroup(L"PlaneHitGroup", {});
+
+    // menger sponge fractal
+    m_sbtHelper.AddHitGroup(L"HitGroup", { 
+        (void*)(m_perInstanceConstantBuffers[0]->GetGPUVirtualAddress()),
+        (void*)(m_mengerVB->GetGPUVirtualAddress()),
+        (void*)(m_mengerIB->GetGPUVirtualAddress()) 
+        });
+
 
     // Compute the size of the SBT given the number of shaders and their
     // parameters
@@ -795,17 +865,27 @@ void D3DRTWindow::CreateAccelerationStructures()
 {
     // Build the bottom AS from the Triangle vertex buffer
     AccelerationStructureBuffers bottomLevelBuffers =
-        CreateBottomLevelAS({ {m_vertexUploadBuffer.Get(), 3} });
+        CreateBottomLevelAS({ {m_vertexUploadBuffer.Get(), 4} }, {{m_indexUploadBuffer.Get(), 12}});
 
     // #DXR Extra: Per-Instance Data
     AccelerationStructureBuffers planeBottomLevelBuffers =
         CreateBottomLevelAS({ {m_planeBuffer.Get(), 6} });
 
+    // #DXR Extra: Indexed Geometry    
+    // Build the bottom AS from the Menger Sponge vertex buffer
+    // #DXR Extra: Indexed Geometry
+    // Build the bottom AS from the Menger Sponge vertex buffer
+    AccelerationStructureBuffers mengerBottomLevelBuffers =
+        CreateBottomLevelAS({ {m_mengerVB.Get(), m_mengerVertexCount} },
+            { {m_mengerIB.Get(), m_mengerIndexCount} });
+
+
     // Just one instance for now
     m_instances = { {bottomLevelBuffers.pResult, XMMatrixIdentity()},
                 {bottomLevelBuffers.pResult, XMMatrixTranslation(-.6f, 0, 0)},
                 {bottomLevelBuffers.pResult, XMMatrixTranslation(.6f, 0, 0)},
-                {planeBottomLevelBuffers.pResult, XMMatrixTranslation(0, 0, 0)} };
+                {planeBottomLevelBuffers.pResult, XMMatrixTranslation(0, 0, 0)},
+                { mengerBottomLevelBuffers.pResult, XMMatrixIdentity() /*add merger sponge*/  } }; 
     CreateTopLevelAS(m_instances);
 
     // Flush the command list and wait for it to finish
@@ -889,7 +969,9 @@ ComPtr<ID3D12RootSignature> D3DRTWindow::CreateHitSignature() {
     // shader binding table we will associate each hit shader instance with its
     // constant buffer. Here we bind the buffer to the first slot, accessible in
     // HLSL as register(b0)
-    rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_CBV, 0);
+    rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_CBV, 0 /*b0*/);
+    rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_SRV, 0 /*t0*/); // vertices
+    rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_SRV, 1 /*t1*/); // indices
     return rsc.Generate(m_device.Get(), true);
 }
 
@@ -1186,5 +1268,69 @@ void D3DRTWindow::CreatePerInstanceConstantBuffers()
         memcpy(pData, &bufferData[i * 3], bufferSize);
         cb->Unmap(0, nullptr);
         ++i;
+    }
+}
+
+void D3DRTWindow::CreateMengerSpongeVB()
+{
+    std::vector< Vertex > vertices;
+    std::vector< UINT > indices;
+
+    nv_helpers_dx12::GenerateMengerSponge(3, 0.75, vertices, indices);
+    {
+        const UINT mengerVBSize = static_cast<UINT>(vertices.size()) * sizeof(Vertex);
+
+        // Note: using upload heaps to transfer static data like vert buffers is not
+        // recommended. Every time the GPU needs it, the upload heap will be
+        // marshalled over. Please read up on Default Heap usage. An upload heap is
+        // used here for code simplicity and because there are very few verts to
+        // actually transfer.
+        CD3DX12_HEAP_PROPERTIES heapProperty = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+        CD3DX12_RESOURCE_DESC bufferResource = CD3DX12_RESOURCE_DESC::Buffer(mengerVBSize);
+        ThrowIfFailed(m_device->CreateCommittedResource(
+            &heapProperty, D3D12_HEAP_FLAG_NONE, &bufferResource, //
+            D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_mengerVB)));
+
+        // Copy the triangle data to the vertex buffer.
+        UINT8* pVertexDataBegin;
+        CD3DX12_RANGE readRange(0, 0); // We do not intend to read from this resource on the CPU.
+        ThrowIfFailed(m_mengerVB->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin)));
+        memcpy(pVertexDataBegin, vertices.data(), mengerVBSize);
+        m_mengerVB->Unmap(0, nullptr);
+
+        // Initialize the vertex buffer view.
+        m_mengerVBView.BufferLocation = m_mengerVB->GetGPUVirtualAddress();
+        m_mengerVBView.StrideInBytes = sizeof(Vertex);
+        m_mengerVBView.SizeInBytes = mengerVBSize;
+    }
+    {
+        const UINT mengerIBSize = static_cast<UINT>(indices.size()) * sizeof(UINT);
+
+        // Note: using upload heaps to transfer static data like vert buffers is not
+        // recommended. Every time the GPU needs it, the upload heap will be
+        // marshalled over. Please read up on Default Heap usage. An upload heap is
+        // used here for code simplicity and because there are very few verts to
+        // actually transfer.
+        CD3DX12_HEAP_PROPERTIES heapProperty = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+        CD3DX12_RESOURCE_DESC bufferResource = CD3DX12_RESOURCE_DESC::Buffer(mengerIBSize);
+        ThrowIfFailed(m_device->CreateCommittedResource(
+            &heapProperty, D3D12_HEAP_FLAG_NONE, &bufferResource, //
+            D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_mengerIB)));
+
+        // Copy the triangle data to the index buffer.
+        UINT8* pIndexDataBegin;
+        CD3DX12_RANGE readRange(0, 0); // We do not intend to read from this resource on the CPU.
+        ThrowIfFailed(m_mengerIB->Map(0, &readRange, reinterpret_cast<void**>(&pIndexDataBegin)));
+        memcpy(pIndexDataBegin, indices.data(), mengerIBSize);
+        m_mengerIB->Unmap(0, nullptr);
+
+        // Initialize the index buffer view.
+        m_mengerIBView.BufferLocation = m_mengerIB->GetGPUVirtualAddress();
+        m_mengerIBView.Format = DXGI_FORMAT_R32_UINT;
+        m_mengerIBView.SizeInBytes = mengerIBSize;
+
+
+        m_mengerIndexCount = static_cast<UINT>(indices.size());
+        m_mengerVertexCount = static_cast<UINT>(vertices.size());
     }
 }

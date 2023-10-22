@@ -51,6 +51,14 @@ public:
 private:
     struct Vertex
     {
+        // #DXR Extra: Indexed Geometry
+        Vertex(XMFLOAT4 pos, XMFLOAT4 /*n*/, XMFLOAT4 col)
+            :POSITION(pos.x, pos.y, pos.z), COLOR(col)
+        {}
+        Vertex(XMFLOAT3 pos, XMFLOAT4 col)
+            :POSITION(pos), COLOR(col)
+        {}
+
         XMFLOAT3 POSITION;
         XMFLOAT4 COLOR;
     };
@@ -110,6 +118,14 @@ private:
     ComPtr<ID3D12Resource> m_globalConstantBuffer;
     std::vector<ComPtr<ID3D12Resource>> m_perInstanceConstantBuffers;
 
+    // #DXR Extra: Indexed Geometry
+    ComPtr<ID3D12Resource> m_mengerVB;
+    ComPtr<ID3D12Resource> m_mengerIB;
+    D3D12_VERTEX_BUFFER_VIEW m_mengerVBView;
+    D3D12_INDEX_BUFFER_VIEW m_mengerIBView;
+
+    UINT m_mengerIndexCount;
+    UINT m_mengerVertexCount;
 
     // Ray tracing pipeline state
     ComPtr<ID3D12StateObject> m_rtStateObject;
@@ -140,7 +156,10 @@ private:
     void PopulateCommandList();
     void WaitForPreviousFrame();
     void CheckRaytracingSupport();
-    D3DRTWindow::AccelerationStructureBuffers D3DRTWindow::CreateBottomLevelAS(std::vector<std::pair<ComPtr<ID3D12Resource>, uint32_t>> vVertexBuffers);
+    D3DRTWindow::AccelerationStructureBuffers D3DRTWindow::CreateBottomLevelAS(
+        std::vector<std::pair<ComPtr<ID3D12Resource>, uint32_t>> vVertexBuffers,
+        std::vector<std::pair<ComPtr<ID3D12Resource>, uint32_t>> vIndexBuffers = {}
+    );
     void CreateTopLevelAS(const std::vector<std::pair<ComPtr<ID3D12Resource>, DirectX::XMMATRIX>>& bottomLevelASInstances);
     void CreateAccelerationStructures();
 
@@ -162,6 +181,9 @@ private:
     void CreatePlaneVB();
     void CreateGlobalConstantBuffer();
     void CreatePerInstanceConstantBuffers();
+
+    // #DXR Extra: Indexed Geometry
+    void CreateMengerSpongeVB();
 };
 
 #endif // !_D3DRT_WINDOWS_H_
