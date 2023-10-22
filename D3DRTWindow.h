@@ -127,6 +127,10 @@ private:
     UINT m_mengerIndexCount;
     UINT m_mengerVertexCount;
 
+    // #DXR Extra: Depth Buffering
+    ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
+    ComPtr<ID3D12Resource> m_depthStencil;
+
     // Ray tracing pipeline state
     ComPtr<ID3D12StateObject> m_rtStateObject;
     // Ray tracing pipeline state properties, retaining the shader identifiers
@@ -184,6 +188,9 @@ private:
 
     // #DXR Extra: Indexed Geometry
     void CreateMengerSpongeVB();
+
+    // #DXR Extra: Depth Buffering
+    void CreateDepthBuffer();
 };
 
 #endif // !_D3DRT_WINDOWS_H_

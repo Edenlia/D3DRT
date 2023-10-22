@@ -134,6 +134,11 @@ void D3DRTWindow::LoadPipeline()
             ));
     }
 
+    // #DXR Extra: Depth Buffering
+    // The original sample does not support depth buffering, so we need to allocate a depth buffer,
+    // and later bind it before rasterization
+    CreateDepthBuffer();
+
     // Describe and create the command queue.
     D3D12_COMMAND_QUEUE_DESC queueDesc = {};
     queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
@@ -233,6 +238,8 @@ void D3DRTWindow::LoadAssets()
         UINT compileFlags = 0;
 #endif
 
+        
+
         ThrowIfFailed(D3DCompileFromFile(GetAssetFullPath(L"RastShaders.hlsl").c_str(), nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, nullptr));
         ThrowIfFailed(D3DCompileFromFile(GetAssetFullPath(L"RastShaders.hlsl").c_str(), nullptr, nullptr, "PSMain", "ps_5_0", compileFlags, 0, &pixelShader, nullptr));
 
@@ -251,13 +258,16 @@ void D3DRTWindow::LoadAssets()
         psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.Get());
         psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
         psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-        psoDesc.DepthStencilState.DepthEnable = FALSE;
-        psoDesc.DepthStencilState.StencilEnable = FALSE;
+        // #DXR Extra: Depth Buffering
+        // Add support for depth testing, using a 32-bit floating-point depth buffer
+        psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+        psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
         psoDesc.SampleMask = UINT_MAX;
         psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
         psoDesc.NumRenderTargets = 1;
         psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
         psoDesc.SampleDesc.Count = 1;
+        
         ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
     }
 
@@ -482,7 +492,11 @@ void D3DRTWindow::PopulateCommandList()
     m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
-    m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+    // #DXR Extra: Depth Buffering
+    // Bind the depth buffer as a render target
+    CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
+
+    m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
     // Record commands.
     // #DXR
@@ -496,6 +510,8 @@ void D3DRTWindow::PopulateCommandList()
         const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
         m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
         m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        // #DXR Extra: Depth Buffering
+        m_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
         // #DXR Extra: Per-Instance Data
         // In a way similar to triangle rendering, rasterize the plane
@@ -1333,4 +1349,42 @@ void D3DRTWindow::CreateMengerSpongeVB()
         m_mengerIndexCount = static_cast<UINT>(indices.size());
         m_mengerVertexCount = static_cast<UINT>(vertices.size());
     }
+}
+
+//-----------------------------------------------------------------------------
+//
+// Create the depth buffer for rasterization. This buffer needs to be kept in a separate heap
+// 
+// #DXR Extra: Depth Buffering
+void D3DRTWindow::CreateDepthBuffer()
+{
+    // The depth buffer heap type is specific for that usage, and the heap contents are not visible
+  // from the shaders
+    m_dsvHeap = nv_helpers_dx12::CreateDescriptorHeap(m_device.Get(), 1,
+        D3D12_DESCRIPTOR_HEAP_TYPE_DSV, false);
+
+    // The depth and stencil can be packed into a single 32-bit texture buffer. Since we do not need
+    // stencil, we use the 32 bits to store depth information (DXGI_FORMAT_D32_FLOAT).
+    D3D12_HEAP_PROPERTIES depthHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+
+    D3D12_RESOURCE_DESC depthResourceDesc =
+        CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, m_width, m_height, 1, 1);
+    depthResourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+    // The depth values will be initialized to 1
+    CD3DX12_CLEAR_VALUE depthOptimizedClearValue(DXGI_FORMAT_D32_FLOAT, 1.0f, 0);
+
+    // Allocate the buffer itself, with a state allowing depth writes
+    ThrowIfFailed(m_device->CreateCommittedResource(
+        &depthHeapProperties, D3D12_HEAP_FLAG_NONE, &depthResourceDesc,
+        D3D12_RESOURCE_STATE_DEPTH_WRITE, &depthOptimizedClearValue, IID_PPV_ARGS(&m_depthStencil)));
+
+    // Write the depth buffer view into the depth buffer heap
+    D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+    dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
+    dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+    dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+
+    m_device->CreateDepthStencilView(m_depthStencil.Get(), &dsvDesc,
+        m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
 }
