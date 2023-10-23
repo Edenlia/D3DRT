@@ -131,6 +131,10 @@ private:
     ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
     ComPtr<ID3D12Resource> m_depthStencil;
 
+    // #DXR Extra - Another ray type
+    ComPtr<IDxcBlob> m_shadowLibrary;
+    ComPtr<ID3D12RootSignature> m_shadowSignature;
+
     // Ray tracing pipeline state
     ComPtr<ID3D12StateObject> m_rtStateObject;
     // Ray tracing pipeline state properties, retaining the shader identifiers

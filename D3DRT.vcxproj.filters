@@ -67,6 +67,7 @@
     <CustomBuild Include="Shaders\RayGen.hlsl">
       <Filter>Assets\Shaders\RayTracing</Filter>
     </CustomBuild>
+    <CustomBuild Include="Shaders\ShadowRay.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <CopyFileToFolders Include="External\dxcompiler.dll" />

@@ -784,6 +784,9 @@ void D3DRTWindow::CreateShaderBindingTable()
     // communicate their results through the ray payload
     m_sbtHelper.AddMissProgram(L"Miss", {});
 
+    // #DXR Extra - Another ray type
+    m_sbtHelper.AddMissProgram(L"ShadowMiss", {});
+
     // Adding the triangle hit shader
     // #DXR Extra: Per-Instance Data
     // We have 3 triangles, each of which needs to access its own constant buffer
@@ -798,10 +801,14 @@ void D3DRTWindow::CreateShaderBindingTable()
                 (void*)(m_indexUploadBuffer->GetGPUVirtualAddress()) 
             }
         );
+        // #DXR Extra - Another ray type
+        m_sbtHelper.AddHitGroup(L"ShadowHitGroup", {});
     }
 
     // The plane also uses a constant buffer for its vertex colors
-    m_sbtHelper.AddHitGroup(L"PlaneHitGroup", {});
+    // #DXR Extra - Another ray type
+    m_sbtHelper.AddHitGroup(L"PlaneHitGroup", { (void*)(m_perInstanceConstantBuffers[0]->GetGPUVirtualAddress()), heapPointer });
+    m_sbtHelper.AddHitGroup(L"ShadowHitGroup", {});
 
     // menger sponge fractal
     m_sbtHelper.AddHitGroup(L"HitGroup", { 
@@ -809,7 +816,8 @@ void D3DRTWindow::CreateShaderBindingTable()
         (void*)(m_mengerVB->GetGPUVirtualAddress()),
         (void*)(m_mengerIB->GetGPUVirtualAddress()) 
         });
-
+    // #DXR Extra - Another ray type
+    m_sbtHelper.AddHitGroup(L"ShadowHitGroup", {});
 
     // Compute the size of the SBT given the number of shaders and their
     // parameters
@@ -835,7 +843,7 @@ void D3DRTWindow::CreateTopLevelAS(const std::vector<std::pair<ComPtr<ID3D12Reso
     for (size_t i = 0; i < instances.size(); i++) {
         m_topLevelASGenerator.AddInstance(instances[i].first.Get(),
             instances[i].second, static_cast<UINT>(i),
-            static_cast<UINT>(i));
+            static_cast<UINT>(2*i));
     }
 
     // As for the bottom-level AS, the building the AS requires some scratch space
@@ -988,6 +996,9 @@ ComPtr<ID3D12RootSignature> D3DRTWindow::CreateHitSignature() {
     rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_CBV, 0 /*b0*/);
     rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_SRV, 0 /*t0*/); // vertices
     rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_SRV, 1 /*t1*/); // indices
+    rsc.AddHeapRangesParameter({
+        { 2 /*t2*/, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1 /*2nd slot of the heap*/ },
+        });
     return rsc.Generate(m_device.Get(), true);
 }
 
@@ -1018,6 +1029,8 @@ void D3DRTWindow::CreateRaytracingPipeline() {
     m_rayGenLibrary = nv_helpers_dx12::CompileShaderLibrary(L"Shaders/RayGen.hlsl");
     m_missLibrary = nv_helpers_dx12::CompileShaderLibrary(L"Shaders/Miss.hlsl");
     m_hitLibrary = nv_helpers_dx12::CompileShaderLibrary(L"Shaders/Hit.hlsl");
+    // #DXR Extra - Another ray type
+    m_shadowLibrary = nv_helpers_dx12::CompileShaderLibrary(L"Shaders/ShadowRay.hlsl");
 
 
     // In a way similar to DLLs, each library is associated with a number of
@@ -1029,12 +1042,15 @@ void D3DRTWindow::CreateRaytracingPipeline() {
     pipeline.AddLibrary(m_missLibrary.Get(), { L"Miss" });
     // #DXR Extra: Per-Instance Data
     pipeline.AddLibrary(m_hitLibrary.Get(), { L"ClosestHit", L"PlaneClosestHit" });
+    // #DXR Extra - Another ray type
+    pipeline.AddLibrary(m_shadowLibrary.Get(), { L"ShadowClosestHit", L"ShadowMiss" });
 
     // To be used, each DX12 shader needs a root signature defining which
     // parameters and buffers will be accessed.
     m_rayGenSignature = CreateRayGenSignature();
     m_missSignature = CreateMissSignature();
     m_hitSignature = CreateHitSignature();
+    m_shadowSignature = CreateHitSignature();
 
     // 3 different shaders can be invoked to obtain an intersection: an
     // intersection shader is called
@@ -1056,6 +1072,10 @@ void D3DRTWindow::CreateRaytracingPipeline() {
     pipeline.AddHitGroup(L"HitGroup", L"ClosestHit");
     // #DXR Extra: Per-Instance Data
     pipeline.AddHitGroup(L"PlaneHitGroup", L"PlaneClosestHit");
+    // #DXR Extra - Another ray type
+    // Hit group for all geometry when hit by a shadow ray
+    pipeline.AddHitGroup(L"ShadowHitGroup", L"ShadowClosestHit");
+
 
 
     // The following section associates the root signature to each shader. Note
@@ -1063,9 +1083,13 @@ void D3DRTWindow::CreateRaytracingPipeline() {
     // (eg. Miss and ShadowMiss). Note that the hit shaders are now only referred
     // to as hit groups, meaning that the underlying intersection, any-hit and
     // closest-hit shaders share the same root signature.
+    // #DXR Extra - Another ray type
     pipeline.AddRootSignatureAssociation(m_rayGenSignature.Get(), { L"RayGen" });
-    pipeline.AddRootSignatureAssociation(m_missSignature.Get(), { L"Miss" });
+    pipeline.AddRootSignatureAssociation(m_missSignature.Get(), { L"Miss", L"ShadowMiss" });
     pipeline.AddRootSignatureAssociation(m_hitSignature.Get(), { L"HitGroup", L"PlaneHitGroup" });
+    pipeline.AddRootSignatureAssociation(m_shadowSignature.Get(), { L"ShadowHitGroup" });
+    
+
 
     // The payload size defines the maximum size of the data carried by the rays,
     // ie. the the data
@@ -1085,7 +1109,8 @@ void D3DRTWindow::CreateRaytracingPipeline() {
     // then requires a trace depth of 1. Note that this recursion depth should be
     // kept to a minimum for best performance. Path tracing algorithms can be
     // easily flattened into a simple loop in the ray generation.
-    pipeline.SetMaxRecursionDepth(1);
+    // #DXR Extra - Another ray type
+    pipeline.SetMaxRecursionDepth(2);
 
     // Compile the pipeline for execution on the GPU
     try {
@@ -1175,12 +1200,12 @@ void D3DRTWindow::CreatePlaneVB()
 {
     // Define the geometry for a plane.
     Vertex planeVertices[] = {
-        {{-1.5f, -.8f, 01.5f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 0
-        {{-1.5f, -.8f, -1.5f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 1
-        {{01.5f, -.8f, 01.5f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 2
-        {{01.5f, -.8f, 01.5f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 2
-        {{-1.5f, -.8f, -1.5f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 1
-        {{01.5f, -.8f, -1.5f}, {1.0f, 1.0f, 1.0f, 1.0f}}  // 4
+        {{-10.5f, -1.3f, 010.5f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 0
+        {{-10.5f, -1.3f, -10.5f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 1
+        {{010.5f, -1.3f, 010.5f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 2
+        {{010.5f, -1.3f, 010.5f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 2
+        {{-10.5f, -1.3f, -10.5f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 1
+        {{010.5f, -1.3f, -10.5f}, {1.0f, 1.0f, 1.0f, 1.0f}}  // 4
     };
 
     const UINT planeBufferSize = sizeof(planeVertices);
