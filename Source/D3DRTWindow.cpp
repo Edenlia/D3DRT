@@ -9,9 +9,9 @@
 //
 //*********************************************************
 
-#include "./stdafx.h"
+#include "./DXAPI/stdafx.h"
 #include "D3DRTWindow.h"
-#include "D3DUtil.h"
+#include "./Util/D3DUtil.h"
 #include "UploadBufferResource.h"
 #include "./DXRHelpers/DXRHelper.h"
 #include <array>
@@ -21,7 +21,7 @@
 #include "./DXRHelpers/nv_helpers_dx12/RaytracingPipelineGenerator.h"   
 #include "./DXRHelpers/nv_helpers_dx12/RootSignatureGenerator.h"
 #include "glm/gtc/type_ptr.hpp"
-#include "manipulator.h"
+#include "./DXRHelpers/nv_helpers_dx12/manipulator.h"
 #include "Windowsx.h"
 
 D3DRTWindow::D3DRTWindow(UINT width, UINT height, std::wstring name) :

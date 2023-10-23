@@ -9,7 +9,7 @@
 //
 //*********************************************************
 
-#include "stdafx.h"
+#include "./DXAPI/stdafx.h"
 #include "Win32Application.h"
 
 HWND Win32Application::m_hwnd = nullptr;

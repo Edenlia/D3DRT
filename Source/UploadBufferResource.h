@@ -1,8 +1,8 @@
 #ifndef _UPLOAD_BUFFER_RESOURCE_H_
 #define _UPLOAD_BUFFER_RESOURCE_H_
 
-#include "D3DUtil.h"
-#include "./stdafx.h"
+#include "./Util/D3DUtil.h"
+#include "./DXAPI/stdafx.h"
 #include "./DXSample.h"
 
 template <typename T>

@@ -8,7 +8,7 @@
 // PURPOSE, MERCHANTABILITY, OR NON-INFRINGEMENT.
 //
 //*********************************************************
-#include "stdafx.h"
+#include "./DXAPI/stdafx.h"
 #include "./D3DRTWindow.h"
 
 _Use_decl_annotations_

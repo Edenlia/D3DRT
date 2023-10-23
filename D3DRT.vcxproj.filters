@@ -1,73 +1,96 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Display">
-      <UniqueIdentifier>{abf8b60a-eca1-4dd5-b7f7-922244032f01}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Assets">
       <UniqueIdentifier>{cca49638-a4ad-4e89-9078-3f8c85a06fec}</UniqueIdentifier>
     </Filter>
     <Filter Include="Assets\Shaders">
       <UniqueIdentifier>{631ecf09-604e-4ddf-b25e-edbcbaec9a71}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Assets\Shaders\RayTracing">
-      <UniqueIdentifier>{0d1a2892-3d98-44bd-a29a-27bee037c426}</UniqueIdentifier>
+    <Filter Include="DXRHelpers">
+      <UniqueIdentifier>{ed386a65-bc4a-4528-aa4c-1a0b6edf4f93}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Assets\Shaders\Rasterization">
-      <UniqueIdentifier>{ce8a716a-95eb-454a-b225-4aed81ac5ba3}</UniqueIdentifier>
+    <Filter Include="DXRHelpers\nv_helpers_dx12">
+      <UniqueIdentifier>{4eb55629-29ca-4816-9697-55ff872f0d92}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source\DXSample.cpp" />
     <ClCompile Include="Source\Main.cpp" />
-    <ClCompile Include="Source\stdafx.cpp" />
+    <ClCompile Include="Source\DXAPI\stdafx.cpp" />
     <ClCompile Include="Source\Win32Application.cpp" />
     <ClCompile Include="Source\D3DRTWindow.cpp" />
     <ClCompile Include="Source\RenderTime.cpp" />
-    <ClCompile Include="Source\DXRHelpers\nv_helpers_dx12\BottomLevelASGenerator.cpp" />
-    <ClCompile Include="Source\DXRHelpers\nv_helpers_dx12\RaytracingPipelineGenerator.cpp" />
-    <ClCompile Include="Source\DXRHelpers\nv_helpers_dx12\RootSignatureGenerator.cpp" />
-    <ClCompile Include="Source\DXRHelpers\nv_helpers_dx12\ShaderBindingTableGenerator.cpp" />
-    <ClCompile Include="Source\DXRHelpers\nv_helpers_dx12\TopLevelASGenerator.cpp" />
-    <ClCompile Include="Source\manipulator.cpp" />
+    <ClCompile Include="Source\DXRHelpers\nv_helpers_dx12\BottomLevelASGenerator.cpp">
+      <Filter>DXRHelpers\nv_helpers_dx12</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\DXRHelpers\nv_helpers_dx12\RaytracingPipelineGenerator.cpp">
+      <Filter>DXRHelpers\nv_helpers_dx12</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\DXRHelpers\nv_helpers_dx12\RootSignatureGenerator.cpp">
+      <Filter>DXRHelpers\nv_helpers_dx12</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\DXRHelpers\nv_helpers_dx12\ShaderBindingTableGenerator.cpp">
+      <Filter>DXRHelpers\nv_helpers_dx12</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\DXRHelpers\nv_helpers_dx12\TopLevelASGenerator.cpp">
+      <Filter>DXRHelpers\nv_helpers_dx12</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\DXRHelpers\nv_helpers_dx12\manipulator.cpp">
+      <Filter>DXRHelpers\nv_helpers_dx12</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Source\d3dx12.h" />
+    <ClInclude Include="Source\DXAPI\d3dx12.h" />
     <ClInclude Include="Source\DXSample.h" />
     <ClInclude Include="Source\DXSampleHelper.h" />
-    <ClInclude Include="Source\stdafx.h" />
+    <ClInclude Include="Source\DXAPI\stdafx.h" />
     <ClInclude Include="Source\Win32Application.h" />
     <ClInclude Include="Source\D3DRTWindow.h" />
     <ClInclude Include="Source\RenderTime.h" />
     <ClInclude Include="Source\UploadBufferResource.h" />
-    <ClInclude Include="Source\D3DUtil.h" />
-    <ClInclude Include="Source\DXRHelpers\DXRHelper.h" />
-    <ClInclude Include="Source\DXRHelpers\nv_helpers_dx12\BottomLevelASGenerator.h" />
-    <ClInclude Include="Source\DXRHelpers\nv_helpers_dx12\RaytracingPipelineGenerator.h" />
-    <ClInclude Include="Source\DXRHelpers\nv_helpers_dx12\RootSignatureGenerator.h" />
-    <ClInclude Include="Source\DXRHelpers\nv_helpers_dx12\ShaderBindingTableGenerator.h" />
-    <ClInclude Include="Source\DXRHelpers\nv_helpers_dx12\TopLevelASGenerator.h" />
-    <ClInclude Include="Source\manipulator.h" />
-    <ClInclude Include="Source\dxcapi.h" />
-    <ClInclude Include="Source\dxcapi.use.h" />
+    <ClInclude Include="Source\Util\D3DUtil.h" />
+    <ClInclude Include="Source\DXAPI\dxcapi.h" />
+    <ClInclude Include="Source\DXAPI\dxcapi.use.h" />
+    <ClInclude Include="Source\DXRHelpers\DXRHelper.h">
+      <Filter>DXRHelpers</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\DXRHelpers\nv_helpers_dx12\BottomLevelASGenerator.h">
+      <Filter>DXRHelpers\nv_helpers_dx12</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\DXRHelpers\nv_helpers_dx12\RaytracingPipelineGenerator.h">
+      <Filter>DXRHelpers\nv_helpers_dx12</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\DXRHelpers\nv_helpers_dx12\RootSignatureGenerator.h">
+      <Filter>DXRHelpers\nv_helpers_dx12</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\DXRHelpers\nv_helpers_dx12\ShaderBindingTableGenerator.h">
+      <Filter>DXRHelpers\nv_helpers_dx12</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\DXRHelpers\nv_helpers_dx12\TopLevelASGenerator.h">
+      <Filter>DXRHelpers\nv_helpers_dx12</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\DXRHelpers\nv_helpers_dx12\manipulator.h">
+      <Filter>DXRHelpers\nv_helpers_dx12</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
+    <CustomBuild Include="Shaders\ShadowRay.hlsl" />
     <CustomBuild Include="Shaders\RastShaders.hlsl">
-      <Filter>Assets\Shaders\Rasterization</Filter>
+      <Filter>Assets\Shaders</Filter>
     </CustomBuild>
     <CustomBuild Include="Shaders\Common.hlsl">
-      <Filter>Assets\Shaders\RayTracing</Filter>
+      <Filter>Assets\Shaders</Filter>
     </CustomBuild>
     <CustomBuild Include="Shaders\Hit.hlsl">
-      <Filter>Assets\Shaders\RayTracing</Filter>
+      <Filter>Assets\Shaders</Filter>
     </CustomBuild>
     <CustomBuild Include="Shaders\Miss.hlsl">
-      <Filter>Assets\Shaders\RayTracing</Filter>
+      <Filter>Assets\Shaders</Filter>
     </CustomBuild>
     <CustomBuild Include="Shaders\RayGen.hlsl">
-      <Filter>Assets\Shaders\RayTracing</Filter>
+      <Filter>Assets\Shaders</Filter>
     </CustomBuild>
-    <CustomBuild Include="Shaders\ShadowRay.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <CopyFileToFolders Include="External\dxcompiler.dll" />

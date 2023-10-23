@@ -7,7 +7,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
-#include "dxcapi.use.h"
+#include "../DXAPI/dxcapi.use.h"
 
 namespace nv_helpers_dx12
 {

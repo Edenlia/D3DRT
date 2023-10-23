@@ -1,7 +1,7 @@
 /******************************************************************************
  * Copyright 1986, 2017 NVIDIA Corporation. All rights reserved.
  ******************************************************************************/
-#include "stdafx.h"
+#include "../../DXAPI/stdafx.h"
 
 #include "manipulator.h"
 

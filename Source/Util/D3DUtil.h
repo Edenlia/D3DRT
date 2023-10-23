@@ -1,7 +1,7 @@
 #ifndef _D3D_UTIL_H_
 #define _D3D_UTIL_H_
 
-#include "./stdafx.h"
+#include "../DXAPI/stdafx.h"
 
 UINT CalcConstantBufferByteSize(UINT byteSize)
 {

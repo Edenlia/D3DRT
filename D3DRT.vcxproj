@@ -148,17 +148,17 @@
     <ClCompile Include="Source\DXRHelpers\nv_helpers_dx12\TopLevelASGenerator.cpp" />
     <ClCompile Include="Source\DXSample.cpp" />
     <ClCompile Include="Source\Main.cpp" />
-    <ClCompile Include="Source\manipulator.cpp" />
+    <ClCompile Include="Source\DXRHelpers\nv_helpers_dx12\manipulator.cpp" />
     <ClCompile Include="Source\RenderTime.cpp" />
-    <ClCompile Include="Source\stdafx.cpp" />
+    <ClCompile Include="Source\DXAPI\stdafx.cpp" />
     <ClCompile Include="Source\Win32Application.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\D3DRTWindow.h" />
-    <ClInclude Include="Source\D3DUtil.h" />
-    <ClInclude Include="Source\d3dx12.h" />
-    <ClInclude Include="Source\dxcapi.h" />
-    <ClInclude Include="Source\dxcapi.use.h" />
+    <ClInclude Include="Source\Util\D3DUtil.h" />
+    <ClInclude Include="Source\DXAPI\d3dx12.h" />
+    <ClInclude Include="Source\DXAPI\dxcapi.h" />
+    <ClInclude Include="Source\DXAPI\dxcapi.use.h" />
     <ClInclude Include="Source\DXRHelpers\DXRHelper.h" />
     <ClInclude Include="Source\DXRHelpers\nv_helpers_dx12\BottomLevelASGenerator.h" />
     <ClInclude Include="Source\DXRHelpers\nv_helpers_dx12\RaytracingPipelineGenerator.h" />
@@ -167,9 +167,9 @@
     <ClInclude Include="Source\DXRHelpers\nv_helpers_dx12\TopLevelASGenerator.h" />
     <ClInclude Include="Source\DXSample.h" />
     <ClInclude Include="Source\DXSampleHelper.h" />
-    <ClInclude Include="Source\manipulator.h" />
+    <ClInclude Include="Source\DXRHelpers\nv_helpers_dx12\manipulator.h" />
     <ClInclude Include="Source\RenderTime.h" />
-    <ClInclude Include="Source\stdafx.h" />
+    <ClInclude Include="Source\DXAPI\stdafx.h" />
     <ClInclude Include="Source\UploadBufferResource.h" />
     <ClInclude Include="Source\Win32Application.h" />
   </ItemGroup>

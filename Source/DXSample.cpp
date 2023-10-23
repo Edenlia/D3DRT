@@ -9,7 +9,7 @@
 //
 //*********************************************************
 
-#include "stdafx.h"
+#include "./DXAPI/stdafx.h"
 #include "DXSample.h"
 
 using namespace Microsoft::WRL;
