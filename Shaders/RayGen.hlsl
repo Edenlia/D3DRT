@@ -37,7 +37,7 @@ export void RayGen() {
     ray.Direction = mul(viewI, float4(dir.xyz, 0));
     ray.TMin = 0;
     ray.TMax = 100000;
-    
+        
     // Trace the ray
     TraceRay(
     // Parameter name: AccelerationStructure

@@ -17,6 +17,7 @@
 #include <array>
 #include <memory>
 #include <vector>
+#include <array>
 #include <string>
 #include "./DXRHelpers/nv_helpers_dx12/RaytracingPipelineGenerator.h"   
 #include "./DXRHelpers/nv_helpers_dx12/RootSignatureGenerator.h"
@@ -344,6 +345,8 @@ void D3DRTWindow::LoadAssets()
 
     // #DXR Extra: Indexed Geometry
     CreateMengerSpongeVB();
+
+    BuildProceduralGeometryAABBs();
 
     // Create synchronization objects and wait until assets have been uploaded to the GPU.
     {
@@ -811,13 +814,19 @@ void D3DRTWindow::CreateShaderBindingTable()
     m_sbtHelper.AddHitGroup(L"ShadowHitGroup", {});
 
     // menger sponge fractal
-    m_sbtHelper.AddHitGroup(L"HitGroup", { 
+    m_sbtHelper.AddHitGroup(L"HitGroup", {
         (void*)(m_perInstanceConstantBuffers[0]->GetGPUVirtualAddress()),
         (void*)(m_mengerVB->GetGPUVirtualAddress()),
-        (void*)(m_mengerIB->GetGPUVirtualAddress()) 
+        (void*)(m_mengerIB->GetGPUVirtualAddress())
         });
-    // #DXR Extra - Another ray type
+    //// #DXR Extra - Another ray type
     m_sbtHelper.AddHitGroup(L"ShadowHitGroup", {});
+
+    
+    m_sbtHelper.AddHitGroup(L"ProcedualGeometryHitGroup", { });
+    m_sbtHelper.AddHitGroup(L"ShadowHitGroup", {});
+    
+
 
     // Compute the size of the SBT given the number of shaders and their
     // parameters
@@ -900,16 +909,21 @@ void D3DRTWindow::CreateAccelerationStructures()
     // #DXR Extra: Indexed Geometry
     // Build the bottom AS from the Menger Sponge vertex buffer
     AccelerationStructureBuffers mengerBottomLevelBuffers =
-        CreateBottomLevelAS({ {m_mengerVB.Get(), m_mengerVertexCount} },
-            { {m_mengerIB.Get(), m_mengerIndexCount} });
+        CreateBottomLevelAS({ {m_mengerVB.Get(), m_mengerVertexCount}},
+            { {m_mengerIB.Get(), m_mengerIndexCount}  });
 
+    AccelerationStructureBuffers sphereBottomLevelBuffers = CreateAABBBottomLevelAS();
 
     // Just one instance for now
-    m_instances = { {bottomLevelBuffers.pResult, XMMatrixIdentity()},
-                {bottomLevelBuffers.pResult, XMMatrixTranslation(-.6f, 0, 0)},
-                {bottomLevelBuffers.pResult, XMMatrixTranslation(.6f, 0, 0)},
-                {planeBottomLevelBuffers.pResult, XMMatrixTranslation(0, 0, 0)},
-                { mengerBottomLevelBuffers.pResult, XMMatrixIdentity() /*add merger sponge*/  } }; 
+    m_instances = 
+    { 
+        {bottomLevelBuffers.pResult, XMMatrixIdentity()},
+        {bottomLevelBuffers.pResult, XMMatrixTranslation(-.6f, 0, 0)},
+        {bottomLevelBuffers.pResult, XMMatrixTranslation(.6f, 0, 0)},
+        {planeBottomLevelBuffers.pResult, XMMatrixTranslation(0, 0, 0)},
+        {mengerBottomLevelBuffers.pResult, XMMatrixIdentity() /*add merger sponge*/},
+        {sphereBottomLevelBuffers.pResult, XMMatrixIdentity()},
+    };
     CreateTopLevelAS(m_instances);
 
     // Flush the command list and wait for it to finish
@@ -1002,6 +1016,11 @@ ComPtr<ID3D12RootSignature> D3DRTWindow::CreateHitSignature() {
     return rsc.Generate(m_device.Get(), true);
 }
 
+ComPtr<ID3D12RootSignature> D3DRTWindow::CreateProcedualGeometryHitSignature() {
+    nv_helpers_dx12::RootSignatureGenerator rsc;
+    return rsc.Generate(m_device.Get(), true);
+}
+
 //-----------------------------------------------------------------------------
 // The miss shader communicates only through the ray payload, and therefore
 // does not require any resources
@@ -1031,6 +1050,7 @@ void D3DRTWindow::CreateRaytracingPipeline() {
     m_hitLibrary = nv_helpers_dx12::CompileShaderLibrary(L"Shaders/Hit.hlsl");
     // #DXR Extra - Another ray type
     m_shadowLibrary = nv_helpers_dx12::CompileShaderLibrary(L"Shaders/ShadowRay.hlsl");
+    m_procedualGeometryLibrary = nv_helpers_dx12::CompileShaderLibrary(L"Shaders/Procedual.hlsl");
 
 
     // In a way similar to DLLs, each library is associated with a number of
@@ -1044,6 +1064,8 @@ void D3DRTWindow::CreateRaytracingPipeline() {
     pipeline.AddLibrary(m_hitLibrary.Get(), { L"ClosestHit", L"PlaneClosestHit" });
     // #DXR Extra - Another ray type
     pipeline.AddLibrary(m_shadowLibrary.Get(), { L"ShadowClosestHit", L"ShadowMiss" });
+    // Procedural Geometry
+    pipeline.AddLibrary(m_procedualGeometryLibrary.Get(), { L"SphereIntersection", L"SphereClosestHit" });
 
     // To be used, each DX12 shader needs a root signature defining which
     // parameters and buffers will be accessed.
@@ -1051,6 +1073,7 @@ void D3DRTWindow::CreateRaytracingPipeline() {
     m_missSignature = CreateMissSignature();
     m_hitSignature = CreateHitSignature();
     m_shadowSignature = CreateHitSignature();
+    m_procedualGeometrySignature = CreateProcedualGeometryHitSignature();
 
     // 3 different shaders can be invoked to obtain an intersection: an
     // intersection shader is called
@@ -1075,7 +1098,8 @@ void D3DRTWindow::CreateRaytracingPipeline() {
     // #DXR Extra - Another ray type
     // Hit group for all geometry when hit by a shadow ray
     pipeline.AddHitGroup(L"ShadowHitGroup", L"ShadowClosestHit");
-
+    // Procedual Geometry
+    pipeline.AddHitGroup(L"ProcedualGeometryHitGroup", L"SphereClosestHit", L"", L"SphereIntersection", D3D12_HIT_GROUP_TYPE_PROCEDURAL_PRIMITIVE);
 
 
     // The following section associates the root signature to each shader. Note
@@ -1088,8 +1112,7 @@ void D3DRTWindow::CreateRaytracingPipeline() {
     pipeline.AddRootSignatureAssociation(m_missSignature.Get(), { L"Miss", L"ShadowMiss" });
     pipeline.AddRootSignatureAssociation(m_hitSignature.Get(), { L"HitGroup", L"PlaneHitGroup" });
     pipeline.AddRootSignatureAssociation(m_shadowSignature.Get(), { L"ShadowHitGroup" });
-    
-
+    pipeline.AddRootSignatureAssociation(m_procedualGeometrySignature.Get(), { L"ProcedualGeometryHitGroup" });
 
     // The payload size defines the maximum size of the data carried by the rays,
     // ie. the the data
@@ -1200,12 +1223,12 @@ void D3DRTWindow::CreatePlaneVB()
 {
     // Define the geometry for a plane.
     Vertex planeVertices[] = {
-        {{-10.5f, -1.3f, 010.5f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 0
-        {{-10.5f, -1.3f, -10.5f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 1
-        {{010.5f, -1.3f, 010.5f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 2
-        {{010.5f, -1.3f, 010.5f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 2
-        {{-10.5f, -1.3f, -10.5f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 1
-        {{010.5f, -1.3f, -10.5f}, {1.0f, 1.0f, 1.0f, 1.0f}}  // 4
+        {{-10.f, -1.3f, 010.f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 0
+        {{-10.f, -1.3f, -10.f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 1
+        {{010.f, -1.3f, 010.f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 2
+        {{010.f, -1.3f, 010.f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 2
+        {{-10.f, -1.3f, -10.f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 1
+        {{010.f, -1.3f, -10.f}, {1.0f, 1.0f, 1.0f, 1.0f}}  // 4
     };
 
     const UINT planeBufferSize = sizeof(planeVertices);
@@ -1412,4 +1435,111 @@ void D3DRTWindow::CreateDepthBuffer()
 
     m_device->CreateDepthStencilView(m_depthStencil.Get(), &dsvDesc,
         m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
+}
+
+void D3DRTWindow::BuildProceduralGeometryAABBs()
+{
+    // #DXR Extra: Procedural Geometry
+    auto InitializeAABB = [&](auto& basePosition, auto& size)
+        {
+            return D3D12_RAYTRACING_AABB{
+                basePosition.x - size.x, 
+                basePosition.y - size.y, 
+                basePosition.z - size.z,
+                basePosition.x + size.x, 
+                basePosition.y + size.y, 
+                basePosition.z + size.z
+            };
+        };
+
+    m_aabbs.resize(1);
+
+    m_aabbs[0] = InitializeAABB(XMINT3(0, 0, 0), XMFLOAT3(3, 3, 3));
+
+    UINT64 aabbSize = m_aabbs.size() * sizeof(m_aabbs[0]);
+
+    // Store aabb in upload heap
+    CD3DX12_HEAP_PROPERTIES heapProperty = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+    CD3DX12_RESOURCE_DESC bufferResource = CD3DX12_RESOURCE_DESC::Buffer(aabbSize);
+    ThrowIfFailed(m_device->CreateCommittedResource(
+        &heapProperty, 
+        D3D12_HEAP_FLAG_NONE, 
+        &bufferResource, //
+        D3D12_RESOURCE_STATE_GENERIC_READ, 
+        nullptr, 
+        IID_PPV_ARGS(&m_aabbBuffer)));
+
+    m_aabbBuffer->SetName(L"AABB Buffer");
+
+    // Copy the aabb data to the index buffer.
+    UINT8* pAABBDataBegin;
+    CD3DX12_RANGE readRange(0, 0); // We do not intend to read from this resource on the CPU.
+    ThrowIfFailed(m_aabbBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pAABBDataBegin)));
+    memcpy(pAABBDataBegin, m_aabbs.data(), aabbSize);
+    m_aabbBuffer->Unmap(0, nullptr);
+}
+
+D3DRTWindow::AccelerationStructureBuffers D3DRTWindow::CreateAABBBottomLevelAS() {
+    std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> geometryDescs(m_aabbs.size());
+    ComPtr<ID3D12Resource> scratch;
+    ComPtr<ID3D12Resource> bottomLevelAS;
+
+    // build geometry desc
+    D3D12_RAYTRACING_GEOMETRY_FLAGS geometryFlags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
+
+    D3D12_RAYTRACING_GEOMETRY_DESC aabbDescTemplate = {};
+    aabbDescTemplate.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_PROCEDURAL_PRIMITIVE_AABBS;
+    aabbDescTemplate.AABBs.AABBCount = 1;
+    aabbDescTemplate.AABBs.AABBs.StrideInBytes = sizeof(D3D12_RAYTRACING_AABB);
+    aabbDescTemplate.Flags = geometryFlags;
+
+    for (int i = 0; i < geometryDescs.size(); ++i)
+    {
+		geometryDescs[i] = aabbDescTemplate;
+		geometryDescs[i].AABBs.AABBs.StartAddress = m_aabbBuffer->GetGPUVirtualAddress() + i * sizeof(D3D12_RAYTRACING_AABB);
+	}
+
+    D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC bottomLevelBuildDesc = {};
+    D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS& bottomLevelInputs = bottomLevelBuildDesc.Inputs;
+
+    bottomLevelInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
+    bottomLevelInputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+    bottomLevelInputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE; // Create fast trace BVH
+    bottomLevelInputs.NumDescs = static_cast<UINT>(geometryDescs.size());
+    bottomLevelInputs.pGeometryDescs = geometryDescs.data();
+
+    D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO bottomLevelPrebuildInfo = {};
+    m_device->GetRaytracingAccelerationStructurePrebuildInfo(&bottomLevelInputs, &bottomLevelPrebuildInfo);
+    ThrowIfFailed(bottomLevelPrebuildInfo.ResultDataMaxSizeInBytes > 0);
+
+    // Create a scratch buffer.
+    AllocateUAVBuffer(m_device.Get(), bottomLevelPrebuildInfo.ScratchDataSizeInBytes, &scratch, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, L"ScratchResource");
+
+    // Allocate resources for acceleration structures.
+    // Acceleration structures can only be placed in resources that are created in the default heap (or custom heap equivalent). 
+    // Default heap is OK since the application doesn’t need CPU read/write access to them. 
+    // The resources that will contain acceleration structures must be created in the state D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, 
+    // and must have resource flag D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS. The ALLOW_UNORDERED_ACCESS requirement simply acknowledges both: 
+    //  - the system will be doing this type of access in its implementation of acceleration structure builds behind the scenes.
+    //  - from the app point of view, synchronization of writes/reads to acceleration structures is accomplished using UAV barriers.
+    {
+        D3D12_RESOURCE_STATES initialResourceState = D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE;
+        AllocateUAVBuffer(m_device.Get(), bottomLevelPrebuildInfo.ResultDataMaxSizeInBytes, &bottomLevelAS, initialResourceState, L"BottomLevelAccelerationStructure");
+    }
+
+    // bottom-level AS desc.
+    {
+        bottomLevelBuildDesc.ScratchAccelerationStructureData = scratch->GetGPUVirtualAddress();
+        bottomLevelBuildDesc.DestAccelerationStructureData = bottomLevelAS->GetGPUVirtualAddress();
+    }
+
+    // Build the acceleration structure.
+    m_commandList->BuildRaytracingAccelerationStructure(&bottomLevelBuildDesc, 0, nullptr);
+
+    AccelerationStructureBuffers bottomLevelASBuffers;
+    bottomLevelASBuffers.pResult = bottomLevelAS;
+    bottomLevelASBuffers.pScratch = scratch;
+    bottomLevelASBuffers.ResultDataMaxSizeInBytes = bottomLevelPrebuildInfo.ResultDataMaxSizeInBytes;
+
+    return bottomLevelASBuffers;
 }

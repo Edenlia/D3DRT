@@ -82,10 +82,11 @@ void RayTracingPipelineGenerator::AddLibrary(IDxcBlob* dxilLibrary,
 void RayTracingPipelineGenerator::AddHitGroup(const std::wstring& hitGroupName,
                                               const std::wstring& closestHitSymbol,
                                               const std::wstring& anyHitSymbol /*= L""*/,
-                                              const std::wstring& intersectionSymbol /*= L""*/)
+                                              const std::wstring& intersectionSymbol /*= L""*/,
+                                              D3D12_HIT_GROUP_TYPE type /* D3D12_HIT_GROUP_TYPE_TRIANGLES */)
 {
   m_hitGroups.emplace_back(
-      HitGroup(hitGroupName, closestHitSymbol, anyHitSymbol, intersectionSymbol));
+      HitGroup(hitGroupName, closestHitSymbol, anyHitSymbol, intersectionSymbol, type));
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -469,7 +470,8 @@ RayTracingPipelineGenerator::Library::Library(const Library& source)
 RayTracingPipelineGenerator::HitGroup::HitGroup(std::wstring hitGroupName,
                                                 std::wstring closestHitSymbol,
                                                 std::wstring anyHitSymbol /*= L""*/,
-                                                std::wstring intersectionSymbol /*= L""*/)
+                                                std::wstring intersectionSymbol /*= L""*/,
+                                                D3D12_HIT_GROUP_TYPE type /* D3D12_HIT_GROUP_TYPE_TRIANGLES */)
     : m_hitGroupName(std::move(hitGroupName)), m_closestHitSymbol(std::move(closestHitSymbol)),
       m_anyHitSymbol(std::move(anyHitSymbol)), m_intersectionSymbol(std::move(intersectionSymbol))
 {
@@ -480,6 +482,23 @@ RayTracingPipelineGenerator::HitGroup::HitGroup(std::wstring hitGroupName,
   m_desc.AnyHitShaderImport = m_anyHitSymbol.empty() ? nullptr : m_anyHitSymbol.c_str();
   m_desc.IntersectionShaderImport =
       m_intersectionSymbol.empty() ? nullptr : m_intersectionSymbol.c_str();
+  m_desc.Type = type;
+  switch (m_desc.Type) 
+  {
+      case D3D12_HIT_GROUP_TYPE_TRIANGLES:
+      {
+          if (m_desc.IntersectionShaderImport != nullptr) {
+              	throw std::logic_error("Hit groups of type TRIANGLES cannot have IntersectionShaderImport defined");
+          }
+          break;
+      }
+      case D3D12_HIT_GROUP_TYPE_PROCEDURAL_PRIMITIVE:
+      {
+          if (m_desc.IntersectionShaderImport == nullptr) {
+              	throw std::logic_error("Hit groups of type PROCEDURAL_PRIMITIVE must have IntersectionShaderImport defined");
+          }
+	  }
+  }
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -489,7 +508,7 @@ RayTracingPipelineGenerator::HitGroup::HitGroup(std::wstring hitGroupName,
 // would cause issues when the original HitGroup object gets out of scope
 RayTracingPipelineGenerator::HitGroup::HitGroup(const HitGroup& source)
     : HitGroup(source.m_hitGroupName, source.m_closestHitSymbol, source.m_anyHitSymbol,
-               source.m_intersectionSymbol)
+               source.m_intersectionSymbol, source.m_desc.Type)
 {
 }
 

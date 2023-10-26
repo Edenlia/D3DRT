@@ -14,3 +14,8 @@ struct Attributes
 {
   float2 bary;
 };
+
+struct ProcedualGeometryAttributes
+{
+    float dummy;
+};

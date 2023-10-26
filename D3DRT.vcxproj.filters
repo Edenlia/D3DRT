@@ -91,6 +91,7 @@
     <CustomBuild Include="Shaders\RayGen.hlsl">
       <Filter>Assets\Shaders</Filter>
     </CustomBuild>
+    <CustomBuild Include="Shaders\Procedual.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <CopyFileToFolders Include="External\dxcompiler.dll" />

@@ -106,7 +106,7 @@ void PlaneClosestHit(inout HitInfo payload, Attributes attrib)
       // between the hit/miss shaders and the raygen
       shadowPayload);
 
-    float factor = shadowPayload.isHit ? 0.3 : 1.0;
+    float factor = shadowPayload.isHit ? 0.6 : 1.0;
 
     float3 barycentrics =
       float3(1.f - attrib.bary.x - attrib.bary.y, attrib.bary.x, attrib.bary.y);

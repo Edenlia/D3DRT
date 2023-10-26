@@ -28,6 +28,24 @@ using namespace DirectX;
 // An example of this can be found in the class method: OnDestroy().
 using Microsoft::WRL::ComPtr;
 
+inline void AllocateUAVBuffer(ID3D12Device* pDevice, UINT64 bufferSize, ID3D12Resource** ppResource, D3D12_RESOURCE_STATES initialResourceState = D3D12_RESOURCE_STATE_COMMON, const wchar_t* resourceName = nullptr)
+{
+    auto uploadHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+    auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(bufferSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+    ThrowIfFailed(pDevice->CreateCommittedResource(
+        &uploadHeapProperties,
+        D3D12_HEAP_FLAG_NONE,
+        &bufferDesc,
+        initialResourceState,
+        nullptr,
+        IID_PPV_ARGS(ppResource)));
+    if (resourceName)
+    {
+        (*ppResource)->SetName(resourceName);
+    }
+}
+
+
 class D3DRTWindow : public DXSample
 {
 public:
@@ -69,6 +87,7 @@ private:
         ComPtr<ID3D12Resource> pScratch;      // Scratch memory for AS builder
         ComPtr<ID3D12Resource> pResult;       // Where the AS is
         ComPtr<ID3D12Resource> pInstanceDesc; // Hold the matrices of the instances
+        UINT64                 ResultDataMaxSizeInBytes = 0;
     };
 
     static const UINT FrameCount = 2;
@@ -135,6 +154,12 @@ private:
     ComPtr<IDxcBlob> m_shadowLibrary;
     ComPtr<ID3D12RootSignature> m_shadowSignature;
 
+    // Procedural Geometry
+    ComPtr<ID3D12Resource> m_aabbBuffer;
+    std::vector<D3D12_RAYTRACING_AABB> m_aabbs;
+    ComPtr<IDxcBlob> m_procedualGeometryLibrary;
+    ComPtr<ID3D12RootSignature> m_procedualGeometrySignature;
+
     // Ray tracing pipeline state
     ComPtr<ID3D12StateObject> m_rtStateObject;
     // Ray tracing pipeline state properties, retaining the shader identifiers
@@ -195,6 +220,11 @@ private:
 
     // #DXR Extra: Depth Buffering
     void CreateDepthBuffer();
+
+    // Procedural Geometry
+    void BuildProceduralGeometryAABBs();
+    D3DRTWindow::AccelerationStructureBuffers D3DRTWindow::CreateAABBBottomLevelAS();
+    ComPtr<ID3D12RootSignature> D3DRTWindow::CreateProcedualGeometryHitSignature();
 };
 
 #endif // !_D3DRT_WINDOWS_H_
