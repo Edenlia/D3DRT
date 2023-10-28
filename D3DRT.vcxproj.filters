@@ -39,6 +39,9 @@
     <ClCompile Include="Source\DXRHelpers\nv_helpers_dx12\manipulator.cpp">
       <Filter>DXRHelpers\nv_helpers_dx12</Filter>
     </ClCompile>
+    <ClCompile Include="Source\PipelineState.cpp" />
+    <ClCompile Include="Source\RootSignature.cpp" />
+    <ClCompile Include="Source\GraphicsCore.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\DXAPI\d3dx12.h" />
@@ -73,6 +76,12 @@
     <ClInclude Include="Source\DXRHelpers\nv_helpers_dx12\manipulator.h">
       <Filter>DXRHelpers\nv_helpers_dx12</Filter>
     </ClInclude>
+    <ClInclude Include="Source\PipelineState.h" />
+    <ClInclude Include="Source\RootSignature.h" />
+    <ClInclude Include="Source\Util\Utility.h" />
+    <ClInclude Include="Source\Hash.h" />
+    <ClInclude Include="Source\Math\Common.h" />
+    <ClInclude Include="Source\GraphicsCore.h" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="Shaders\ShadowRay.hlsl" />

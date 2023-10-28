@@ -18,6 +18,7 @@
 #include "./DXRHelpers/nv_helpers_dx12/TopLevelASGenerator.h"
 #include "./DXRHelpers/nv_helpers_dx12/BottomLevelASGenerator.h"
 #include "./DXRHelpers/nv_helpers_dx12/ShaderBindingTableGenerator.h"
+#include "GraphicsCore.h"
 
 using namespace DirectX;
 
@@ -27,6 +28,7 @@ using namespace DirectX;
 // referenced by the GPU.
 // An example of this can be found in the class method: OnDestroy().
 using Microsoft::WRL::ComPtr;
+using Graphics::g_device;
 
 inline void AllocateUAVBuffer(ID3D12Device* pDevice, UINT64 bufferSize, ID3D12Resource** ppResource, D3D12_RESOURCE_STATES initialResourceState = D3D12_RESOURCE_STATE_COMMON, const wchar_t* resourceName = nullptr)
 {
@@ -96,7 +98,6 @@ private:
     CD3DX12_VIEWPORT m_viewport;
     CD3DX12_RECT m_scissorRect;
     ComPtr<IDXGISwapChain3> m_swapChain;
-    ComPtr<ID3D12Device5> m_device;
     ComPtr<ID3D12Resource> m_renderTargets[FrameCount];
     ComPtr<ID3D12CommandAllocator> m_commandAllocator;
     ComPtr<ID3D12CommandQueue> m_commandQueue;

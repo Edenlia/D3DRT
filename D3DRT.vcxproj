@@ -140,6 +140,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Source\GraphicsCore.cpp" />
+    <ClCompile Include="Source\RootSignature.cpp" />
+    <ClCompile Include="Source\PipelineState.cpp" />
     <ClCompile Include="Source\D3DRTWindow.cpp" />
     <ClCompile Include="Source\DXRHelpers\nv_helpers_dx12\BottomLevelASGenerator.cpp" />
     <ClCompile Include="Source\DXRHelpers\nv_helpers_dx12\RaytracingPipelineGenerator.cpp" />
@@ -154,6 +157,11 @@
     <ClCompile Include="Source\Win32Application.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Source\GraphicsCore.h" />
+    <ClInclude Include="Source\Hash.h" />
+    <ClInclude Include="Source\Math\Common.h" />
+    <ClInclude Include="Source\RootSignature.h" />
+    <ClInclude Include="Source\PipelineState.h" />
     <ClInclude Include="Source\D3DRTWindow.h" />
     <ClInclude Include="Source\Util\D3DUtil.h" />
     <ClInclude Include="Source\DXAPI\d3dx12.h" />
@@ -171,6 +179,7 @@
     <ClInclude Include="Source\RenderTime.h" />
     <ClInclude Include="Source\DXAPI\stdafx.h" />
     <ClInclude Include="Source\UploadBufferResource.h" />
+    <ClInclude Include="Source\Util\Utility.h" />
     <ClInclude Include="Source\Win32Application.h" />
   </ItemGroup>
   <ItemGroup>

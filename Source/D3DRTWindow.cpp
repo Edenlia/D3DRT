@@ -120,7 +120,7 @@ void D3DRTWindow::LoadPipeline()
         ThrowIfFailed(D3D12CreateDevice(
             warpAdapter.Get(),
             D3D_FEATURE_LEVEL_12_1,
-            IID_PPV_ARGS(&m_device)
+            IID_PPV_ARGS(&g_device)
             ));
     }
     else
@@ -131,7 +131,7 @@ void D3DRTWindow::LoadPipeline()
         ThrowIfFailed(D3D12CreateDevice(
             hardwareAdapter.Get(),
             D3D_FEATURE_LEVEL_12_1,
-            IID_PPV_ARGS(&m_device)
+            IID_PPV_ARGS(&g_device)
             ));
     }
 
@@ -145,7 +145,7 @@ void D3DRTWindow::LoadPipeline()
     queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
     queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 
-    ThrowIfFailed(m_device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_commandQueue)));
+    ThrowIfFailed(g_device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_commandQueue)));
 
     // Describe and create the swap chain.
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
@@ -180,9 +180,9 @@ void D3DRTWindow::LoadPipeline()
         rtvHeapDesc.NumDescriptors = FrameCount;
         rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
         rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-        ThrowIfFailed(m_device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&m_rtvHeap)));
+        ThrowIfFailed(g_device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&m_rtvHeap)));
 
-        m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+        m_rtvDescriptorSize = g_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     }
 
     // Create frame resources.
@@ -193,12 +193,12 @@ void D3DRTWindow::LoadPipeline()
         for (UINT n = 0; n < FrameCount; n++)
         {
             ThrowIfFailed(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_renderTargets[n])));
-            m_device->CreateRenderTargetView(m_renderTargets[n].Get(), nullptr, rtvHandle);
+            g_device->CreateRenderTargetView(m_renderTargets[n].Get(), nullptr, rtvHandle);
             rtvHandle.Offset(1, m_rtvDescriptorSize);
         }
     }
 
-    ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator)));
+    ThrowIfFailed(g_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator)));
 }
 
 // Load the sample assets.
@@ -224,7 +224,7 @@ void D3DRTWindow::LoadAssets()
         ComPtr<ID3DBlob> signature;
         ComPtr<ID3DBlob> error;
         ThrowIfFailed(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
-        ThrowIfFailed(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)));
+        ThrowIfFailed(g_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)));
     }
 
     // Create the pipeline state, which includes compiling and loading shaders.
@@ -269,11 +269,11 @@ void D3DRTWindow::LoadAssets()
         psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
         psoDesc.SampleDesc.Count = 1;
         
-        ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
+        ThrowIfFailed(g_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
     }
 
     // Create the command list.
-    ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator.Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
+    ThrowIfFailed(g_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator.Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
 
     // Create the vertex buffer and index buffer.
     {
@@ -301,7 +301,7 @@ void D3DRTWindow::LoadAssets()
         // recommended. Every time the GPU needs it, the upload heap will be marshalled 
         // over. Please read up on Default Heap usage. An upload heap is used here for 
         // code simplicity and because there are very few verts to actually transfer.
-        ThrowIfFailed(m_device->CreateCommittedResource(
+        ThrowIfFailed(g_device->CreateCommittedResource(
             &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
             D3D12_HEAP_FLAG_NONE,
             &CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize),
@@ -327,7 +327,7 @@ void D3DRTWindow::LoadAssets()
 
         CD3DX12_HEAP_PROPERTIES heapProperty = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
         CD3DX12_RESOURCE_DESC bufferResource = CD3DX12_RESOURCE_DESC::Buffer(indexBufferSize);
-        ThrowIfFailed(m_device->CreateCommittedResource(
+        ThrowIfFailed(g_device->CreateCommittedResource(
             &heapProperty, D3D12_HEAP_FLAG_NONE, &bufferResource, //
             D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_indexUploadBuffer)));
 
@@ -350,7 +350,7 @@ void D3DRTWindow::LoadAssets()
 
     // Create synchronization objects and wait until assets have been uploaded to the GPU.
     {
-        ThrowIfFailed(m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
+        ThrowIfFailed(g_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
         m_fenceValue = 1;
 
         // Create an event handle to use for frame synchronization.
@@ -433,7 +433,7 @@ void D3DRTWindow::OnMouseMove(UINT8 wParam, UINT32 lParam)
 ComPtr<ID3D12Resource> D3DRTWindow::CreateDefaultBuffer(const void* const initData, const UINT64 byteSize, ComPtr<ID3D12Resource>& uploadBuffer)
 {
     // Create upload heap, write cpu memory data and send it to defalut heap
-    ThrowIfFailed(m_device->CreateCommittedResource(
+    ThrowIfFailed(g_device->CreateCommittedResource(
         &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
         D3D12_HEAP_FLAG_NONE,
         &CD3DX12_RESOURCE_DESC::Buffer(byteSize),
@@ -443,7 +443,7 @@ ComPtr<ID3D12Resource> D3DRTWindow::CreateDefaultBuffer(const void* const initDa
 
     ComPtr<ID3D12Resource> defaultBuffer;
     // Create default heap, as upload heap's transmission target
-    ThrowIfFailed(m_device->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+    ThrowIfFailed(g_device->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
         D3D12_HEAP_FLAG_NONE,
         &CD3DX12_RESOURCE_DESC::Buffer(byteSize),
         D3D12_RESOURCE_STATE_COMMON,// default heap is copy destination, so init as common state
@@ -650,18 +650,18 @@ D3DRTWindow::AccelerationStructureBuffers D3DRTWindow::CreateBottomLevelAS(
     // The final AS also needs to be stored in addition to the existing vertex
     // buffers. It size is also dependent on the scene complexity.
     UINT64 resultSizeInBytes = 0;
-    bottomLevelAS.ComputeASBufferSizes(m_device.Get(), false, &scratchSizeInBytes, &resultSizeInBytes);
+    bottomLevelAS.ComputeASBufferSizes(g_device.Get(), false, &scratchSizeInBytes, &resultSizeInBytes);
 
     // Once the sizes are obtained, the application is responsible for allocating
    // the necessary buffers. Since the entire generation will be done on the GPU,
    // we can directly allocate those on the default heap
     AccelerationStructureBuffers buffers;
     buffers.pScratch = nv_helpers_dx12::CreateBuffer(
-        m_device.Get(), scratchSizeInBytes,
+        g_device.Get(), scratchSizeInBytes,
         D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COMMON,
         nv_helpers_dx12::kDefaultHeapProps);
     buffers.pResult = nv_helpers_dx12::CreateBuffer(
-        m_device.Get(), resultSizeInBytes,
+        g_device.Get(), resultSizeInBytes,
         D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
         D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
         nv_helpers_dx12::kDefaultHeapProps);
@@ -696,7 +696,7 @@ void D3DRTWindow::CreateRaytracingOutputBuffer()
     resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
     resDesc.MipLevels = 1;
     resDesc.SampleDesc.Count = 1;
-    ThrowIfFailed(m_device->CreateCommittedResource(
+    ThrowIfFailed(g_device->CreateCommittedResource(
         &nv_helpers_dx12::kDefaultHeapProps, D3D12_HEAP_FLAG_NONE, &resDesc,
         D3D12_RESOURCE_STATE_COPY_SOURCE, nullptr,
         IID_PPV_ARGS(&m_outputResource)));
@@ -713,7 +713,7 @@ void D3DRTWindow::CreateShaderResourceHeap()
     // Create a SRV/UAV/CBV descriptor heap. We need 3 entries - 1 SRV for the TLAS, 1 UAV for the
     // raytracing output and 1 CBV for the camera matrices
     m_srvUavHeap = nv_helpers_dx12::CreateDescriptorHeap(
-        m_device.Get(), 3, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+        g_device.Get(), 3, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 
     // Get a handle to the heap memory on the CPU side, to be able to write the
     // descriptors directly
@@ -725,11 +725,11 @@ void D3DRTWindow::CreateShaderResourceHeap()
     // srvHandle
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
     uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-    m_device->CreateUnorderedAccessView(m_outputResource.Get(), nullptr, &uavDesc,
+    g_device->CreateUnorderedAccessView(m_outputResource.Get(), nullptr, &uavDesc,
         srvHandle);
 
     // Add the Top Level AS SRV right after the raytracing output buffer
-    srvHandle.ptr += m_device->GetDescriptorHandleIncrementSize(
+    srvHandle.ptr += g_device->GetDescriptorHandleIncrementSize(
         D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 
@@ -740,18 +740,18 @@ void D3DRTWindow::CreateShaderResourceHeap()
     srvDesc.RaytracingAccelerationStructure.Location =
         m_topLevelASBuffers.pResult->GetGPUVirtualAddress();
     // Write the acceleration structure view in the heap
-    m_device->CreateShaderResourceView(nullptr, &srvDesc, srvHandle);
+    g_device->CreateShaderResourceView(nullptr, &srvDesc, srvHandle);
 
     // #DXR Extra: Perspective Camera
     // Add the constant buffer for the camera after the TLAS
     srvHandle.ptr +=
-        m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        g_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
     // Describe and create a constant buffer view for the camera
     D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
     cbvDesc.BufferLocation = m_cameraBuffer->GetGPUVirtualAddress();
     cbvDesc.SizeInBytes = m_cameraBufferSize;
-    m_device->CreateConstantBufferView(&cbvDesc, srvHandle);
+    g_device->CreateConstantBufferView(&cbvDesc, srvHandle);
 }
 
 //-----------------------------------------------------------------------------
@@ -836,7 +836,7 @@ void D3DRTWindow::CreateShaderBindingTable()
     // mapping to write the SBT contents. After the SBT compilation it could be
     // copied to the default heap for performance.
     m_sbtStorage = nv_helpers_dx12::CreateBuffer(
-        m_device.Get(), sbtSize, D3D12_RESOURCE_FLAG_NONE,
+        g_device.Get(), sbtSize, D3D12_RESOURCE_FLAG_NONE,
         D3D12_RESOURCE_STATE_GENERIC_READ, nv_helpers_dx12::kUploadHeapProps);
     if (!m_sbtStorage) {
         throw std::logic_error("Could not allocate the shader binding table");
@@ -863,17 +863,17 @@ void D3DRTWindow::CreateTopLevelAS(const std::vector<std::pair<ComPtr<ID3D12Reso
     // corresponding memory
     UINT64 scratchSize, resultSize, instanceDescsSize;
 
-    m_topLevelASGenerator.ComputeASBufferSizes(m_device.Get(), true, &scratchSize,
+    m_topLevelASGenerator.ComputeASBufferSizes(g_device.Get(), true, &scratchSize,
         &resultSize, &instanceDescsSize);
 
     // Create the scratch and result buffers. Since the build is all done on GPU,
     // those can be allocated on the default heap
     m_topLevelASBuffers.pScratch = nv_helpers_dx12::CreateBuffer(
-        m_device.Get(), scratchSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+        g_device.Get(), scratchSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
         D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
         nv_helpers_dx12::kDefaultHeapProps);
     m_topLevelASBuffers.pResult = nv_helpers_dx12::CreateBuffer(
-        m_device.Get(), resultSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+        g_device.Get(), resultSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
         D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
         nv_helpers_dx12::kDefaultHeapProps);
 
@@ -881,7 +881,7 @@ void D3DRTWindow::CreateTopLevelAS(const std::vector<std::pair<ComPtr<ID3D12Reso
     // matrices ... Those will be copied into the buffer by the helper through
     // mapping, so the buffer has to be allocated on the upload heap.
     m_topLevelASBuffers.pInstanceDesc = nv_helpers_dx12::CreateBuffer(
-        m_device.Get(), instanceDescsSize, D3D12_RESOURCE_FLAG_NONE,
+        g_device.Get(), instanceDescsSize, D3D12_RESOURCE_FLAG_NONE,
         D3D12_RESOURCE_STATE_GENERIC_READ, nv_helpers_dx12::kUploadHeapProps);
 
     // After all the buffers are allocated, or if only an update is required, we
@@ -972,7 +972,7 @@ void D3DRTWindow::WaitForPreviousFrame()
 void D3DRTWindow::CheckRaytracingSupport()
 {
     D3D12_FEATURE_DATA_D3D12_OPTIONS5 options5 = {};
-    ThrowIfFailed(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5,
+    ThrowIfFailed(g_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5,
         &options5, sizeof(options5)));
     if (options5.RaytracingTier < D3D12_RAYTRACING_TIER_1_0)
         throw std::runtime_error("Raytracing not supported on device");
@@ -991,7 +991,7 @@ ComPtr<ID3D12RootSignature> D3DRTWindow::CreateRayGenSignature() {
        {0 /*t0*/, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV /*Top-level acceleration structure*/, 1},
        {0 /*b0*/, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV /*Camera parameters*/, 2} });
 
-    return rsc.Generate(m_device.Get(), true);
+    return rsc.Generate(g_device.Get(), true);
 }
 
 //-----------------------------------------------------------------------------
@@ -1013,12 +1013,12 @@ ComPtr<ID3D12RootSignature> D3DRTWindow::CreateHitSignature() {
     rsc.AddHeapRangesParameter({
         { 2 /*t2*/, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1 /*2nd slot of the heap*/ },
         });
-    return rsc.Generate(m_device.Get(), true);
+    return rsc.Generate(g_device.Get(), true);
 }
 
 ComPtr<ID3D12RootSignature> D3DRTWindow::CreateProcedualGeometryHitSignature() {
     nv_helpers_dx12::RootSignatureGenerator rsc;
-    return rsc.Generate(m_device.Get(), true);
+    return rsc.Generate(g_device.Get(), true);
 }
 
 //-----------------------------------------------------------------------------
@@ -1027,7 +1027,7 @@ ComPtr<ID3D12RootSignature> D3DRTWindow::CreateProcedualGeometryHitSignature() {
 //
 ComPtr<ID3D12RootSignature> D3DRTWindow::CreateMissSignature() {
     nv_helpers_dx12::RootSignatureGenerator rsc;
-    return rsc.Generate(m_device.Get(), true);
+    return rsc.Generate(g_device.Get(), true);
 }
 
 //-----------------------------------------------------------------------------
@@ -1038,7 +1038,7 @@ ComPtr<ID3D12RootSignature> D3DRTWindow::CreateMissSignature() {
 //
 //
 void D3DRTWindow::CreateRaytracingPipeline() {
-    nv_helpers_dx12::RayTracingPipelineGenerator pipeline(m_device.Get());
+    nv_helpers_dx12::RayTracingPipelineGenerator pipeline(g_device.Get());
 
     // The pipeline contains the DXIL code of all the shaders potentially executed
     // during the raytracing process. This section compiles the HLSL code into a
@@ -1165,12 +1165,12 @@ void D3DRTWindow::CreateCameraBuffer()
 
     // Create the constant buffer for all matrices
     m_cameraBuffer = nv_helpers_dx12::CreateBuffer(
-        m_device.Get(), m_cameraBufferSize, D3D12_RESOURCE_FLAG_NONE,
+        g_device.Get(), m_cameraBufferSize, D3D12_RESOURCE_FLAG_NONE,
         D3D12_RESOURCE_STATE_GENERIC_READ, nv_helpers_dx12::kUploadHeapProps);
 
     // Create a descriptor heap that will be used by the rasterization shaders
     m_constHeap = nv_helpers_dx12::CreateDescriptorHeap(
-        m_device.Get(), 1, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+        g_device.Get(), 1, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 
     // Describe and create the constant buffer view.
     D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
@@ -1181,7 +1181,7 @@ void D3DRTWindow::CreateCameraBuffer()
     // descriptors directly
     D3D12_CPU_DESCRIPTOR_HANDLE srvHandle =
         m_constHeap->GetCPUDescriptorHandleForHeapStart();
-    m_device->CreateConstantBufferView(&cbvDesc, srvHandle);
+    g_device->CreateConstantBufferView(&cbvDesc, srvHandle);
 }
 
 void D3DRTWindow::UpdateCameraBuffer()
@@ -1242,7 +1242,7 @@ void D3DRTWindow::CreatePlaneVB()
         CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
     CD3DX12_RESOURCE_DESC bufferResource =
         CD3DX12_RESOURCE_DESC::Buffer(planeBufferSize);
-    ThrowIfFailed(m_device->CreateCommittedResource(
+    ThrowIfFailed(g_device->CreateCommittedResource(
         &heapProperty, D3D12_HEAP_FLAG_NONE, &bufferResource, //
         D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
         IID_PPV_ARGS(&m_planeBuffer)));
@@ -1288,7 +1288,7 @@ void D3DRTWindow::CreateGlobalConstantBuffer()
 
     // Create our buffer
     m_globalConstantBuffer = nv_helpers_dx12::CreateBuffer(
-        m_device.Get(), sizeof(bufferData), D3D12_RESOURCE_FLAG_NONE,
+        g_device.Get(), sizeof(bufferData), D3D12_RESOURCE_FLAG_NONE,
         D3D12_RESOURCE_STATE_GENERIC_READ, nv_helpers_dx12::kUploadHeapProps);
 
     // Copy CPU memory to GPU
@@ -1324,7 +1324,7 @@ void D3DRTWindow::CreatePerInstanceConstantBuffers()
     for (auto& cb : m_perInstanceConstantBuffers)
     {
         const uint32_t bufferSize = sizeof(XMVECTOR) * 3;
-        cb = nv_helpers_dx12::CreateBuffer(m_device.Get(), bufferSize, D3D12_RESOURCE_FLAG_NONE,
+        cb = nv_helpers_dx12::CreateBuffer(g_device.Get(), bufferSize, D3D12_RESOURCE_FLAG_NONE,
             D3D12_RESOURCE_STATE_GENERIC_READ,
             nv_helpers_dx12::kUploadHeapProps);
         uint8_t* pData;
@@ -1351,7 +1351,7 @@ void D3DRTWindow::CreateMengerSpongeVB()
         // actually transfer.
         CD3DX12_HEAP_PROPERTIES heapProperty = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
         CD3DX12_RESOURCE_DESC bufferResource = CD3DX12_RESOURCE_DESC::Buffer(mengerVBSize);
-        ThrowIfFailed(m_device->CreateCommittedResource(
+        ThrowIfFailed(g_device->CreateCommittedResource(
             &heapProperty, D3D12_HEAP_FLAG_NONE, &bufferResource, //
             D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_mengerVB)));
 
@@ -1377,7 +1377,7 @@ void D3DRTWindow::CreateMengerSpongeVB()
         // actually transfer.
         CD3DX12_HEAP_PROPERTIES heapProperty = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
         CD3DX12_RESOURCE_DESC bufferResource = CD3DX12_RESOURCE_DESC::Buffer(mengerIBSize);
-        ThrowIfFailed(m_device->CreateCommittedResource(
+        ThrowIfFailed(g_device->CreateCommittedResource(
             &heapProperty, D3D12_HEAP_FLAG_NONE, &bufferResource, //
             D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_mengerIB)));
 
@@ -1408,7 +1408,7 @@ void D3DRTWindow::CreateDepthBuffer()
 {
     // The depth buffer heap type is specific for that usage, and the heap contents are not visible
   // from the shaders
-    m_dsvHeap = nv_helpers_dx12::CreateDescriptorHeap(m_device.Get(), 1,
+    m_dsvHeap = nv_helpers_dx12::CreateDescriptorHeap(g_device.Get(), 1,
         D3D12_DESCRIPTOR_HEAP_TYPE_DSV, false);
 
     // The depth and stencil can be packed into a single 32-bit texture buffer. Since we do not need
@@ -1423,7 +1423,7 @@ void D3DRTWindow::CreateDepthBuffer()
     CD3DX12_CLEAR_VALUE depthOptimizedClearValue(DXGI_FORMAT_D32_FLOAT, 1.0f, 0);
 
     // Allocate the buffer itself, with a state allowing depth writes
-    ThrowIfFailed(m_device->CreateCommittedResource(
+    ThrowIfFailed(g_device->CreateCommittedResource(
         &depthHeapProperties, D3D12_HEAP_FLAG_NONE, &depthResourceDesc,
         D3D12_RESOURCE_STATE_DEPTH_WRITE, &depthOptimizedClearValue, IID_PPV_ARGS(&m_depthStencil)));
 
@@ -1433,7 +1433,7 @@ void D3DRTWindow::CreateDepthBuffer()
     dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
     dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
 
-    m_device->CreateDepthStencilView(m_depthStencil.Get(), &dsvDesc,
+    g_device->CreateDepthStencilView(m_depthStencil.Get(), &dsvDesc,
         m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
 }
 
@@ -1461,7 +1461,7 @@ void D3DRTWindow::BuildProceduralGeometryAABBs()
     // Store aabb in upload heap
     CD3DX12_HEAP_PROPERTIES heapProperty = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
     CD3DX12_RESOURCE_DESC bufferResource = CD3DX12_RESOURCE_DESC::Buffer(aabbSize);
-    ThrowIfFailed(m_device->CreateCommittedResource(
+    ThrowIfFailed(g_device->CreateCommittedResource(
         &heapProperty, 
         D3D12_HEAP_FLAG_NONE, 
         &bufferResource, //
@@ -1509,11 +1509,11 @@ D3DRTWindow::AccelerationStructureBuffers D3DRTWindow::CreateAABBBottomLevelAS()
     bottomLevelInputs.pGeometryDescs = geometryDescs.data();
 
     D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO bottomLevelPrebuildInfo = {};
-    m_device->GetRaytracingAccelerationStructurePrebuildInfo(&bottomLevelInputs, &bottomLevelPrebuildInfo);
+    g_device->GetRaytracingAccelerationStructurePrebuildInfo(&bottomLevelInputs, &bottomLevelPrebuildInfo);
     ThrowIfFailed(bottomLevelPrebuildInfo.ResultDataMaxSizeInBytes > 0);
 
     // Create a scratch buffer.
-    AllocateUAVBuffer(m_device.Get(), bottomLevelPrebuildInfo.ScratchDataSizeInBytes, &scratch, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, L"ScratchResource");
+    AllocateUAVBuffer(g_device.Get(), bottomLevelPrebuildInfo.ScratchDataSizeInBytes, &scratch, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, L"ScratchResource");
 
     // Allocate resources for acceleration structures.
     // Acceleration structures can only be placed in resources that are created in the default heap (or custom heap equivalent). 
@@ -1524,7 +1524,7 @@ D3DRTWindow::AccelerationStructureBuffers D3DRTWindow::CreateAABBBottomLevelAS()
     //  - from the app point of view, synchronization of writes/reads to acceleration structures is accomplished using UAV barriers.
     {
         D3D12_RESOURCE_STATES initialResourceState = D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE;
-        AllocateUAVBuffer(m_device.Get(), bottomLevelPrebuildInfo.ResultDataMaxSizeInBytes, &bottomLevelAS, initialResourceState, L"BottomLevelAccelerationStructure");
+        AllocateUAVBuffer(g_device.Get(), bottomLevelPrebuildInfo.ResultDataMaxSizeInBytes, &bottomLevelAS, initialResourceState, L"BottomLevelAccelerationStructure");
     }
 
     // bottom-level AS desc.
