@@ -1564,21 +1564,9 @@ void D3DRTWindow::CreateModel() {
     {
         const UINT modelVBSize = static_cast<UINT>(vertices.size()) * sizeof(Vertex);
 
-        CD3DX12_HEAP_PROPERTIES heapProperty = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-        CD3DX12_RESOURCE_DESC bufferResource = CD3DX12_RESOURCE_DESC::Buffer(modelVBSize);
-        ThrowIfFailed(g_device->CreateCommittedResource(
-            &heapProperty, D3D12_HEAP_FLAG_NONE, &bufferResource, //
-            D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_modelVertexUploadBuffer)));
+        m_modelVertexDefaultBuffer = CreateDefaultBuffer(vertices.data(), modelVBSize, m_modelVertexUploadBuffer);
 
-        // Copy the triangle data to the vertex buffer.
-        UINT8* pVertexDataBegin;
-        CD3DX12_RANGE readRange(0, 0); // We do not intend to read from this resource on the CPU.
-        ThrowIfFailed(m_modelVertexUploadBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin)));
-        memcpy(pVertexDataBegin, vertices.data(), modelVBSize);
-        m_modelVertexUploadBuffer->Unmap(0, nullptr);
-
-        // Initialize the vertex buffer view.
-        m_modelVertexBufferView.BufferLocation = m_modelVertexUploadBuffer->GetGPUVirtualAddress();
+        m_modelVertexBufferView.BufferLocation = m_modelVertexDefaultBuffer->GetGPUVirtualAddress();
         m_modelVertexBufferView.StrideInBytes = sizeof(Vertex);
         m_modelVertexBufferView.SizeInBytes = modelVBSize;
     }
@@ -1586,23 +1574,11 @@ void D3DRTWindow::CreateModel() {
     {
         const UINT modelIBSize = static_cast<UINT>(indices.size()) * sizeof(UINT);
 
-        CD3DX12_HEAP_PROPERTIES heapProperty = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-        CD3DX12_RESOURCE_DESC bufferResource = CD3DX12_RESOURCE_DESC::Buffer(modelIBSize);
-        ThrowIfFailed(g_device->CreateCommittedResource(
-			&heapProperty, D3D12_HEAP_FLAG_NONE, &bufferResource, //
-			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_modelIndexUploadBuffer)));
+        m_modelIndexDefaultBuffer = CreateDefaultBuffer(indices.data(), modelIBSize, m_modelIndexUploadBuffer);
 
-        // Copy the triangle data to the index buffer.
-		UINT8* pIndexDataBegin;
-		CD3DX12_RANGE readRange(0, 0); // We do not intend to read from this resource on the CPU.
-		ThrowIfFailed(m_modelIndexUploadBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pIndexDataBegin)));
-		memcpy(pIndexDataBegin, indices.data(), modelIBSize);
-		m_modelIndexUploadBuffer->Unmap(0, nullptr);
-
-		// Initialize the index buffer view.
-		m_modelIndexBufferView.BufferLocation = m_modelIndexUploadBuffer->GetGPUVirtualAddress();
-		m_modelIndexBufferView.Format = DXGI_FORMAT_R32_UINT;
-		m_modelIndexBufferView.SizeInBytes = modelIBSize;
+        m_modelIndexBufferView.BufferLocation = m_modelIndexDefaultBuffer->GetGPUVirtualAddress();
+        m_modelIndexBufferView.Format = DXGI_FORMAT_R32_UINT;
+        m_modelIndexBufferView.SizeInBytes = modelIBSize;		
     }
 
     m_modelIndexCount = static_cast<UINT>(indices.size());
