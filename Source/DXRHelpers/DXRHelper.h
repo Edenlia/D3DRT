@@ -188,21 +188,21 @@ void GenerateMengerSponge(int32_t level, float probability, std::vector<Vertex>&
 
       const DirectX::XMFLOAT4 n = {normal.m128_f32[0], normal.m128_f32[1], normal.m128_f32[2], 0.f};
       vertices.push_back(
-          {{bottomLeft.x, bottomLeft.y, bottomLeft.z, 1.f}, n, {1.f, 0.f, 0.f, 1.f}});
+          {{bottomLeft.x, bottomLeft.y, bottomLeft.z, 1.f}, {1.f, 0.f, 0.f, 1.f}, n});
       vertices.push_back({{bottomLeft.x + dx.m128_f32[0], bottomLeft.y + dx.m128_f32[1],
                            bottomLeft.z + dx.m128_f32[2], 1.f},
-                          n,
-                          {0.5f, 1.f, 0.f, 1.f}});
+                          {0.5f, 1.f, 0.f, 1.f},
+                          n });
       vertices.push_back({{bottomLeft.x + dy.m128_f32[0], bottomLeft.y + dy.m128_f32[1],
                            bottomLeft.z + dy.m128_f32[2], 1.f},
-                          n,
-                          {0.5f, 0.f, 1.f, 1.f}});
+                          {0.5f, 0.f, 1.f, 1.f},
+                          n });
 
       vertices.push_back({{bottomLeft.x + dx.m128_f32[0] + dy.m128_f32[0],
                            bottomLeft.y + dx.m128_f32[1] + dy.m128_f32[1],
                            bottomLeft.z + dx.m128_f32[2] + dy.m128_f32[2], 1.f},
-                          n,
-                          {0.f, 1.f, 0.f, 1.f}});
+                          {0.f, 1.f, 0.f, 1.f},
+                          n });
     }
     void enqueueVertices(std::vector<Vertex>& vertices, std::vector<UINT>& indices)
     {

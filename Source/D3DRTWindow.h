@@ -19,6 +19,8 @@
 #include "./DXRHelpers/nv_helpers_dx12/BottomLevelASGenerator.h"
 #include "./DXRHelpers/nv_helpers_dx12/ShaderBindingTableGenerator.h"
 #include "GraphicsCore.h"
+#include "Model.h"
+#include "ModelLoader.h"
 
 using namespace DirectX;
 
@@ -69,20 +71,6 @@ public:
 		ComPtr<ID3D12Resource>& uploadBuffer);
 
 private:
-    struct Vertex
-    {
-        // #DXR Extra: Indexed Geometry
-        Vertex(XMFLOAT4 pos, XMFLOAT4 /*n*/, XMFLOAT4 col)
-            :POSITION(pos.x, pos.y, pos.z), COLOR(col)
-        {}
-        Vertex(XMFLOAT3 pos, XMFLOAT4 col)
-            :POSITION(pos), COLOR(col)
-        {}
-
-        XMFLOAT3 POSITION;
-        XMFLOAT4 COLOR;
-    };
-
     // #DXR
     struct AccelerationStructureBuffers
     {
@@ -111,11 +99,21 @@ private:
     ComPtr<ID3D12Resource> m_vertexUploadBuffer;
     ComPtr<ID3D12Resource> m_vertexDefaultBuffer;
     D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
-    ComPtr<ID3DBlob> m_vertexCpuBuffer;
     ComPtr<ID3D12Resource> m_indexUploadBuffer;
     ComPtr<ID3D12Resource> m_indexDefaultBuffer;
     D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
-    ComPtr<ID3DBlob> m_indexCpuBuffer;
+
+    ComPtr<ID3D12Resource> m_modelVertexUploadBuffer;
+    ComPtr<ID3D12Resource> m_modelVertexDefaultBuffer;
+    D3D12_VERTEX_BUFFER_VIEW m_modelVertexBufferView;
+    ComPtr<ID3D12Resource> m_modelIndexUploadBuffer;
+    ComPtr<ID3D12Resource> m_modelIndexDefaultBuffer;
+    D3D12_INDEX_BUFFER_VIEW m_modelIndexBufferView;
+
+    UINT m_modelVertexCount;
+    UINT m_modelIndexCount;
+
+    void CreateModel();
 
     // #DXR
     ComPtr<IDxcBlob> m_rayGenLibrary;

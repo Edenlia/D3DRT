@@ -13,6 +13,12 @@
     <Filter Include="DXRHelpers\nv_helpers_dx12">
       <UniqueIdentifier>{4eb55629-29ca-4816-9697-55ff872f0d92}</UniqueIdentifier>
     </Filter>
+    <Filter Include="stb">
+      <UniqueIdentifier>{4a33076d-2776-44ed-9773-04795b8d1a9e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="External">
+      <UniqueIdentifier>{ebd654c9-1488-44e5-bf6e-aab0df9f3e0e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source\DXSample.cpp" />
@@ -42,6 +48,8 @@
     <ClCompile Include="Source\PipelineState.cpp" />
     <ClCompile Include="Source\RootSignature.cpp" />
     <ClCompile Include="Source\GraphicsCore.cpp" />
+    <ClCompile Include="Source\ModelLoader.cpp" />
+    <ClCompile Include="Source\Model.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\DXAPI\d3dx12.h" />
@@ -82,6 +90,17 @@
     <ClInclude Include="Source\Hash.h" />
     <ClInclude Include="Source\Math\Common.h" />
     <ClInclude Include="Source\GraphicsCore.h" />
+    <ClInclude Include="Source\stb\stb_image.h">
+      <Filter>stb</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\stb\stb_image_resize.h">
+      <Filter>stb</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\stb\stb_image_write.h">
+      <Filter>stb</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\ModelLoader.h" />
+    <ClInclude Include="Source\Model.h" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="Shaders\ShadowRay.hlsl" />
@@ -103,7 +122,23 @@
     <CustomBuild Include="Shaders\Procedual.hlsl" />
   </ItemGroup>
   <ItemGroup>
-    <CopyFileToFolders Include="External\dxcompiler.dll" />
-    <CopyFileToFolders Include="External\dxil.dll" />
+    <CopyFileToFolders Include="External\dxcompiler.dll">
+      <Filter>External</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="External\dxil.dll">
+      <Filter>External</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="External\assimp-vc143-mtd.dll">
+      <Filter>External</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="External\minizip.dll">
+      <Filter>External</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="External\pugixml.dll">
+      <Filter>External</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="External\zlibd1.dll">
+      <Filter>External</Filter>
+    </CopyFileToFolders>
   </ItemGroup>
 </Project>

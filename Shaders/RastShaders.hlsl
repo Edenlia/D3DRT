@@ -22,16 +22,24 @@ struct PSInput
     float4 color : COLOR;
 };
 
-PSInput VSMain(float4 position : POSITION, float4 color : COLOR)
+struct VSInput
+{
+    float4 position : POSITION;
+    float4 normal : NORMAL;
+    float4 color : COLOR;
+    float2 uv : UV;
+};
+
+PSInput VSMain(VSInput input)
 {
     PSInput result;
 
     // #DXR Extra: Perspective Camera
-    float4 pos = position;
+    float4 pos = input.position;
     pos = mul(view, pos);
     pos = mul(projection, pos);
     result.position = pos;
-    result.color = color;
+    result.color = input.color;
 
     return result;
 }

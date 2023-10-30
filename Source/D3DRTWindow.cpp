@@ -248,7 +248,9 @@ void D3DRTWindow::LoadAssets()
         D3D12_INPUT_ELEMENT_DESC inputElementDescs[] =
         {
             { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-            { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+            { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+            { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+            { "UV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         };
 
         // Describe and create the graphics pipeline state object (PSO).
@@ -345,6 +347,8 @@ void D3DRTWindow::LoadAssets()
 
     // #DXR Extra: Indexed Geometry
     CreateMengerSpongeVB();
+
+    CreateModel();
 
     BuildProceduralGeometryAABBs();
 
@@ -531,6 +535,11 @@ void D3DRTWindow::PopulateCommandList()
         m_commandList->IASetVertexBuffers(0, 1, &m_mengerVBView);
         m_commandList->IASetIndexBuffer(&m_mengerIBView);
         m_commandList->DrawIndexedInstanced(m_mengerIndexCount, 1, 0, 0, 0);
+
+        // Draw model
+        m_commandList->IASetVertexBuffers(0, 1, &m_modelVertexBufferView);
+        m_commandList->IASetIndexBuffer(&m_modelIndexBufferView);
+        m_commandList->DrawIndexedInstanced(m_modelIndexCount, 1, 0, 0, 0);
 
     }
     else {
@@ -1542,4 +1551,60 @@ D3DRTWindow::AccelerationStructureBuffers D3DRTWindow::CreateAABBBottomLevelAS()
     bottomLevelASBuffers.ResultDataMaxSizeInBytes = bottomLevelPrebuildInfo.ResultDataMaxSizeInBytes;
 
     return bottomLevelASBuffers;
+}
+
+
+void D3DRTWindow::CreateModel() {
+    std::vector<Vertex> vertices;
+    std::vector<UINT> indices;
+
+    // Load the model
+    ModelLoader::LoadModel("Models/stanford-dragon-pbr/model.dae", vertices, indices);
+
+    {
+        const UINT modelVBSize = static_cast<UINT>(vertices.size()) * sizeof(Vertex);
+
+        CD3DX12_HEAP_PROPERTIES heapProperty = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+        CD3DX12_RESOURCE_DESC bufferResource = CD3DX12_RESOURCE_DESC::Buffer(modelVBSize);
+        ThrowIfFailed(g_device->CreateCommittedResource(
+            &heapProperty, D3D12_HEAP_FLAG_NONE, &bufferResource, //
+            D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_modelVertexUploadBuffer)));
+
+        // Copy the triangle data to the vertex buffer.
+        UINT8* pVertexDataBegin;
+        CD3DX12_RANGE readRange(0, 0); // We do not intend to read from this resource on the CPU.
+        ThrowIfFailed(m_modelVertexUploadBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin)));
+        memcpy(pVertexDataBegin, vertices.data(), modelVBSize);
+        m_modelVertexUploadBuffer->Unmap(0, nullptr);
+
+        // Initialize the vertex buffer view.
+        m_modelVertexBufferView.BufferLocation = m_modelVertexUploadBuffer->GetGPUVirtualAddress();
+        m_modelVertexBufferView.StrideInBytes = sizeof(Vertex);
+        m_modelVertexBufferView.SizeInBytes = modelVBSize;
+    }
+
+    {
+        const UINT modelIBSize = static_cast<UINT>(indices.size()) * sizeof(UINT);
+
+        CD3DX12_HEAP_PROPERTIES heapProperty = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+        CD3DX12_RESOURCE_DESC bufferResource = CD3DX12_RESOURCE_DESC::Buffer(modelIBSize);
+        ThrowIfFailed(g_device->CreateCommittedResource(
+			&heapProperty, D3D12_HEAP_FLAG_NONE, &bufferResource, //
+			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_modelIndexUploadBuffer)));
+
+        // Copy the triangle data to the index buffer.
+		UINT8* pIndexDataBegin;
+		CD3DX12_RANGE readRange(0, 0); // We do not intend to read from this resource on the CPU.
+		ThrowIfFailed(m_modelIndexUploadBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pIndexDataBegin)));
+		memcpy(pIndexDataBegin, indices.data(), modelIBSize);
+		m_modelIndexUploadBuffer->Unmap(0, nullptr);
+
+		// Initialize the index buffer view.
+		m_modelIndexBufferView.BufferLocation = m_modelIndexUploadBuffer->GetGPUVirtualAddress();
+		m_modelIndexBufferView.Format = DXGI_FORMAT_R32_UINT;
+		m_modelIndexBufferView.SizeInBytes = modelIBSize;
+    }
+
+    m_modelIndexCount = static_cast<UINT>(indices.size());
+    m_modelVertexCount = static_cast<UINT>(vertices.size());
 }
