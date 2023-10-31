@@ -155,7 +155,6 @@
     <ClCompile Include="Source\Main.cpp" />
     <ClCompile Include="Source\DXRHelpers\nv_helpers_dx12\manipulator.cpp" />
     <ClCompile Include="Source\RenderTime.cpp" />
-    <ClCompile Include="Source\DXAPI\stdafx.cpp" />
     <ClCompile Include="Source\Win32Application.cpp" />
   </ItemGroup>
   <ItemGroup>

@@ -24,6 +24,8 @@
 #include "glm/gtc/type_ptr.hpp"
 #include "./DXRHelpers/nv_helpers_dx12/manipulator.h"
 #include "Windowsx.h"
+#include "stb/stb_image.h"
+#include "Util/Utility.h"
 
 D3DRTWindow::D3DRTWindow(UINT width, UINT height, std::wstring name) :
     DXSample(width, height, name),
@@ -212,14 +214,35 @@ void D3DRTWindow::LoadAssets()
     // and use that range as the sole parameter of the shader. The camera buffer is associated in the
     // index 0, making it accessible in the shader in the b0 register.
     {
-        CD3DX12_ROOT_PARAMETER constantParameter;
-        CD3DX12_DESCRIPTOR_RANGE range;
-        range.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
-        constantParameter.InitAsDescriptorTable(1, &range, D3D12_SHADER_VISIBILITY_ALL);
+        // Init descriptor range
+        CD3DX12_DESCRIPTOR_RANGE srvRange; // for texture
+
+        srvRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+
+        // Use descriptor range to create rootParameters
+        CD3DX12_ROOT_PARAMETER rootParameters[2];
+        rootParameters[0].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_ALL);
+        rootParameters[1].InitAsDescriptorTable(1, &srvRange, D3D12_SHADER_VISIBILITY_PIXEL);
+
+        // create a static sampler
+        D3D12_STATIC_SAMPLER_DESC sampler = {};
+        sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+        sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        sampler.MipLODBias = 0;
+        sampler.MaxAnisotropy = 0;
+        sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+        sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+        sampler.MinLOD = 0.0f;
+        sampler.MaxLOD = D3D12_FLOAT32_MAX;
+        sampler.ShaderRegister = 0;
+        sampler.RegisterSpace = 0;
+        sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
         CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
-        rootSignatureDesc.Init(1, &constantParameter, 0, nullptr,
-            D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+        rootSignatureDesc.Init(_countof(rootParameters), rootParameters, 1, &sampler,
+            			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
         ComPtr<ID3DBlob> signature;
         ComPtr<ID3DBlob> error;
@@ -239,8 +262,6 @@ void D3DRTWindow::LoadAssets()
         UINT compileFlags = 0;
 #endif
 
-        
-
         ThrowIfFailed(D3DCompileFromFile(GetAssetFullPath(L"RastShaders.hlsl").c_str(), nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, nullptr));
         ThrowIfFailed(D3DCompileFromFile(GetAssetFullPath(L"RastShaders.hlsl").c_str(), nullptr, nullptr, "PSMain", "ps_5_0", compileFlags, 0, &pixelShader, nullptr));
 
@@ -248,9 +269,9 @@ void D3DRTWindow::LoadAssets()
         D3D12_INPUT_ELEMENT_DESC inputElementDescs[] =
         {
             { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-            { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
             { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-            { "UV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+            { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 28, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+            { "UV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 40, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         };
 
         // Describe and create the graphics pipeline state object (PSO).
@@ -508,12 +529,9 @@ void D3DRTWindow::PopulateCommandList()
     // Record commands.
     // #DXR
     if (m_raster) {
-        // #DXR Extra: Perspective Camera
-        std::vector< ID3D12DescriptorHeap* > heaps = { m_constHeap.Get() };
-        m_commandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
-        // set the root descriptor table 0 to the constant buffer descriptor heap
-        m_commandList->SetGraphicsRootDescriptorTable(
-            0, m_constHeap->GetGPUDescriptorHandleForHeapStart());
+        // set the constant buffer descriptor heap
+        m_commandList->SetGraphicsRootConstantBufferView(0, m_cameraBuffer.Get()->GetGPUVirtualAddress());
+
         const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
         m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
         m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -537,6 +555,11 @@ void D3DRTWindow::PopulateCommandList()
         m_commandList->DrawIndexedInstanced(m_mengerIndexCount, 1, 0, 0, 0);
 
         // Draw model
+        // set the root descriptor table 1 to the texture descriptor heap
+        std::vector< ID3D12DescriptorHeap* > heaps = { m_textureDescHeap.Get() };
+        m_commandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
+        m_commandList->SetGraphicsRootDescriptorTable(
+            1, m_textureDescHeap->GetGPUDescriptorHandleForHeapStart());
         m_commandList->IASetVertexBuffers(0, 1, &m_modelVertexBufferView);
         m_commandList->IASetIndexBuffer(&m_modelIndexBufferView);
         m_commandList->DrawIndexedInstanced(m_modelIndexCount, 1, 0, 0, 0);
@@ -1583,4 +1606,95 @@ void D3DRTWindow::CreateModel() {
 
     m_modelIndexCount = static_cast<UINT>(indices.size());
     m_modelVertexCount = static_cast<UINT>(vertices.size());
+
+    // Create Texture
+    int width, height, channels;
+
+    // Read as 4 channel
+    unsigned char* imageData = stbi_load("Models/stanford-dragon-pbr/textures/DefaultMaterial_albedo.jpg", &width, &height, &channels, 4);
+
+    channels = 4;
+
+    if (imageData) {
+        D3D12_RESOURCE_DESC textureDesc = {};
+        textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+        textureDesc.Alignment = 0;
+        textureDesc.Width = width;
+        textureDesc.Height = height;
+        textureDesc.DepthOrArraySize = 1;
+        textureDesc.MipLevels = 1;
+        textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        textureDesc.SampleDesc.Count = 1;
+        textureDesc.SampleDesc.Quality = 0;
+        textureDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+        textureDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+        // Create default heap, as upload heap's transmission target
+        ThrowIfFailed(g_device->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+            D3D12_HEAP_FLAG_NONE,
+            &textureDesc,
+            D3D12_RESOURCE_STATE_COMMON,// default heap is copy destination, so init as common state
+            nullptr,
+            IID_PPV_ARGS(&m_textureBuffer)));
+
+        m_textureBuffer->SetName(L"Texture");
+
+        // Use GetCopyableFootprints to get the layout of the texture should be in upload heap
+        // Default heap 
+        // Manual calculate the size of the texture is also ok, but GetCopyableFootprints is more convenient
+        UINT64  textureUploadBufferSize;
+        //textureHeapSize  = ((((width * 4) + 255) & ~255) * (height - 1)) + (width * 4);
+        g_device->GetCopyableFootprints(&textureDesc, 0, 1, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
+
+        // Create upload heap, write cpu memory data and send it to defalut heap
+        ThrowIfFailed(g_device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+            D3D12_HEAP_FLAG_NONE,
+            &CD3DX12_RESOURCE_DESC::Buffer(textureUploadBufferSize),
+            D3D12_RESOURCE_STATE_GENERIC_READ,
+            nullptr,
+            IID_PPV_ARGS(&m_textureUploadBuffer)));
+
+        m_textureUploadBuffer->SetName(L"Texture Upload buffer");
+
+        // Set resource state from common to copy destination (default heap is the receive target)
+        m_commandList->ResourceBarrier(1,
+            &CD3DX12_RESOURCE_BARRIER::Transition(m_textureBuffer.Get(),
+                D3D12_RESOURCE_STATE_COMMON,
+                D3D12_RESOURCE_STATE_COPY_DEST));
+
+        // store vertex buffer in upload heap
+        D3D12_SUBRESOURCE_DATA textureData = {};
+        textureData.pData = imageData; // pointer to our image data
+        textureData.RowPitch = textureDesc.Width * channels; // size of a row in the texture data
+        textureData.SlicePitch = textureData.RowPitch * textureDesc.Height; // size of entire texture data
+
+        // Now we copy the upload buffer contents to the default heap
+        UpdateSubresources(m_commandList.Get(), m_textureBuffer.Get(), m_textureUploadBuffer.Get(), 0, 0, 1, &textureData);
+
+        // Set resource state from copy destination to generic read (only shader can access to it)
+        m_commandList->ResourceBarrier(1,
+            &CD3DX12_RESOURCE_BARRIER::Transition(m_textureBuffer.Get(),
+                D3D12_RESOURCE_STATE_COPY_DEST,
+                D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+
+
+        // Create descriptor heap for default heap buffer
+        D3D12_DESCRIPTOR_HEAP_DESC textureDescHeapDesc = {};
+        textureDescHeapDesc.NumDescriptors = 1;
+        textureDescHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+        textureDescHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+
+        ThrowIfFailed(g_device->CreateDescriptorHeap(&textureDescHeapDesc, IID_PPV_ARGS(&m_textureDescHeap)));
+
+        // Create SRV based on default heap buffer
+        D3D12_CPU_DESCRIPTOR_HANDLE textureDescHeapHandle = m_textureDescHeap->GetCPUDescriptorHandleForHeapStart();
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Format = textureDesc.Format;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Texture2D.MipLevels = 1;
+        g_device->CreateShaderResourceView(m_textureBuffer.Get(), &srvDesc, textureDescHeapHandle);
+    }
 }

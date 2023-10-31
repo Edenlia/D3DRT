@@ -16,17 +16,22 @@ cbuffer CameraParams : register(b0)
     float4x4 projection;
 }
 
+Texture2D t1 : register(t0);
+SamplerState s1 : register(s0);
+
 struct PSInput
 {
     float4 position : SV_POSITION;
     float4 color : COLOR;
+    float3 normal : NORMAL;
+    float2 uv : UV;
 };
 
 struct VSInput
 {
     float4 position : POSITION;
-    float4 normal : NORMAL;
     float4 color : COLOR;
+    float3 normal : NORMAL;
     float2 uv : UV;
 };
 
@@ -40,11 +45,21 @@ PSInput VSMain(VSInput input)
     pos = mul(projection, pos);
     result.position = pos;
     result.color = input.color;
+    result.normal = input.normal;
+    result.uv = input.uv;
 
     return result;
 }
 
 float4 PSMain(PSInput input) : SV_TARGET
-{
-    return input.color;
+{    
+    if (input.uv.x == 0 && input.uv.y == 0)
+    {
+        return input.color;
+    }
+    else
+    {
+        return t1.Sample(s1, input.uv);
+    }
+    
 }

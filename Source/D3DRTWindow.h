@@ -165,6 +165,10 @@ private:
     // to use in the Shader Binding Table
     ComPtr<ID3D12StateObjectProperties> m_rtStateObjectProps;
 
+    ComPtr<ID3D12Resource> m_textureUploadBuffer;
+    ComPtr<ID3D12Resource> m_textureBuffer;
+    ComPtr<ID3D12DescriptorHeap> m_textureDescHeap;
+
 
     // Synchronization objects.
     UINT m_frameIndex;

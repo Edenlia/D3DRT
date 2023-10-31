@@ -23,7 +23,6 @@
   <ItemGroup>
     <ClCompile Include="Source\DXSample.cpp" />
     <ClCompile Include="Source\Main.cpp" />
-    <ClCompile Include="Source\DXAPI\stdafx.cpp" />
     <ClCompile Include="Source\Win32Application.cpp" />
     <ClCompile Include="Source\D3DRTWindow.cpp" />
     <ClCompile Include="Source\RenderTime.cpp" />
