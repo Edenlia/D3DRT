@@ -26,6 +26,7 @@
 #include "Windowsx.h"
 #include "stb/stb_image.h"
 #include "Util/Utility.h"
+#include <glm/gtc/matrix_transform.hpp>
 
 D3DRTWindow::D3DRTWindow(UINT width, UINT height, std::wstring name) :
     DXSample(width, height, name),
@@ -262,8 +263,18 @@ void D3DRTWindow::LoadAssets()
         UINT compileFlags = 0;
 #endif
 
-        ThrowIfFailed(D3DCompileFromFile(GetAssetFullPath(L"RastShaders.hlsl").c_str(), nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, nullptr));
-        ThrowIfFailed(D3DCompileFromFile(GetAssetFullPath(L"RastShaders.hlsl").c_str(), nullptr, nullptr, "PSMain", "ps_5_0", compileFlags, 0, &pixelShader, nullptr));
+        ID3DBlob* vsErrorBlob = nullptr;
+        ID3DBlob* psErrorBlob = nullptr;
+
+        HRESULT hr1 = D3DCompileFromFile(GetAssetFullPath(L"RastShaders.hlsl").c_str(), nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, &vsErrorBlob);
+        HRESULT hr2 = D3DCompileFromFile(GetAssetFullPath(L"RastShaders.hlsl").c_str(), nullptr, nullptr, "PSMain", "ps_5_0", compileFlags, 0, &pixelShader, &psErrorBlob);
+
+        if (vsErrorBlob) {
+            OutputDebugStringA((char*)vsErrorBlob->GetBufferPointer());
+        }
+        if (psErrorBlob) {
+			OutputDebugStringA((char*)psErrorBlob->GetBufferPointer());
+		}
 
         // Define the vertex input layout.
         D3D12_INPUT_ELEMENT_DESC inputElementDescs[] =
@@ -543,16 +554,16 @@ void D3DRTWindow::PopulateCommandList()
         m_commandList->IASetVertexBuffers(0, 1, &m_planeBufferView);
         m_commandList->DrawInstanced(6, 1, 0, 0);
 
-        // Indexed triangle rendering
-        m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
-        m_commandList->IASetIndexBuffer(&m_indexBufferView);
-        m_commandList->DrawIndexedInstanced(12, 1, 0, 0, 0);
+        //// Indexed triangle rendering
+        //m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
+        //m_commandList->IASetIndexBuffer(&m_indexBufferView);
+        //m_commandList->DrawIndexedInstanced(12, 1, 0, 0, 0);
 
-        // #DXR Extra: Indexed Geometry
-        // In a way similar to triangle rendering, rasterize the Menger Sponge
-        m_commandList->IASetVertexBuffers(0, 1, &m_mengerVBView);
-        m_commandList->IASetIndexBuffer(&m_mengerIBView);
-        m_commandList->DrawIndexedInstanced(m_mengerIndexCount, 1, 0, 0, 0);
+        //// #DXR Extra: Indexed Geometry
+        //// In a way similar to triangle rendering, rasterize the Menger Sponge
+        //m_commandList->IASetVertexBuffers(0, 1, &m_mengerVBView);
+        //m_commandList->IASetIndexBuffer(&m_mengerIBView);
+        //m_commandList->DrawIndexedInstanced(m_mengerIndexCount, 1, 0, 0, 0);
 
         // Draw model
         // set the root descriptor table 1 to the texture descriptor heap
@@ -1224,12 +1235,15 @@ void D3DRTWindow::UpdateCameraBuffer()
     // interactions The lookat and perspective matrices used for rasterization are
     // defined to transform world-space vertices into a [0,1]x[0,1]x[0,1] camera
     // space
-    const glm::mat4& mat = nv_helpers_dx12::CameraManip.getMatrix();
+    const glm::mat4& mat = nv_helpers_dx12::CameraManip.getMatrix(); 
     memcpy(&matrices[0].r->m128_f32[0], glm::value_ptr(mat), 16 * sizeof(float));
 
+    glm::vec3 testV = nv_helpers_dx12::CameraManip.getPosition();
+
+    glm::mat4 viewInv = glm::inverse(mat);
 
     float fovAngleY = 45.0f * XM_PI / 180.0f;
-    matrices[1] =
+    matrices[1] = 
         XMMatrixPerspectiveFovRH(fovAngleY, m_aspectRatio, 0.1f, 1000.0f);
 
     // Raytracing has to do the contrary of rasterization: rays are defined in
@@ -1255,12 +1269,12 @@ void D3DRTWindow::CreatePlaneVB()
 {
     // Define the geometry for a plane.
     Vertex planeVertices[] = {
-        {{-10.f, -1.3f, 010.f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 0
-        {{-10.f, -1.3f, -10.f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 1
-        {{010.f, -1.3f, 010.f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 2
-        {{010.f, -1.3f, 010.f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 2
-        {{-10.f, -1.3f, -10.f}, {1.0f, 1.0f, 1.0f, 1.0f}}, // 1
-        {{010.f, -1.3f, -10.f}, {1.0f, 1.0f, 1.0f, 1.0f}}  // 4
+        {{-00.f, -1.3f, 010.f, 1.0f}, {0.0f, 0.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}}, // 0
+        {{-00.f, -1.3f, -00.f, 1.0f}, {0.0f, 0.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}}, // 1
+        {{010.f, -1.3f, 010.f, 1.0f}, {0.0f, 0.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}}, // 2
+        {{010.f, -1.3f, 010.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f}}, // 2
+        {{-00.f, -1.3f, -00.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f}}, // 1
+        {{010.f, -1.3f, -00.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f}}  // 4
     };
 
     const UINT planeBufferSize = sizeof(planeVertices);

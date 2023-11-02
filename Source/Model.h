@@ -11,12 +11,12 @@ public:
         :POSITION(pos), COLOR(col), NORMAL(0, 0, 0), UV(0, 0)
     {}
 
-    Vertex(XMFLOAT4 pos, XMFLOAT4 col, XMFLOAT4 n)
-        :POSITION(pos.x, pos.y, pos.z), COLOR(col), NORMAL(n.x, n.y, n.z), UV(0, 0)
+    Vertex(XMFLOAT4 pos, XMFLOAT4 col, XMFLOAT3 n)
+        :POSITION(pos.x, pos.y, pos.z), COLOR(col), NORMAL(n), UV(0, 0)
     {}
 
-    Vertex(XMFLOAT4 pos, XMFLOAT4 col, XMFLOAT4 n, XMFLOAT2 uv)
-        :POSITION(pos.x, pos.y, pos.z), COLOR(col), NORMAL(n.x, n.y, n.z), UV(uv.x, uv.y)
+    Vertex(XMFLOAT4 pos, XMFLOAT4 col, XMFLOAT3 n, XMFLOAT2 uv)
+        :POSITION(pos.x, pos.y, pos.z), COLOR(col), NORMAL(n), UV(uv.x, uv.y)
     {}
 
 

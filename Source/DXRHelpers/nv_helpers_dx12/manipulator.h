@@ -102,6 +102,8 @@ public:
   /// Retrieve the screen height
   int getHeight() const;
 
+  glm::vec3 getPosition() const { return m_pos; }
+
 protected:
   Manipulator();
 

@@ -34,7 +34,7 @@ void ModelLoader::LoadModel(const char* path, std::vector<Vertex>& vertices, std
             aiVector3D normal = aMesh->mNormals[j];
             aiVector3D uv = aMesh->mTextureCoords[0][j];
 
-            vertices.push_back(Vertex(XMFLOAT4(vertex.x, vertex.y, vertex.z, 1.0f), colors[j % 3], XMFLOAT4(normal.x, normal.y, normal.z, 1.0), XMFLOAT2(uv.x, uv.y)));
+            vertices.push_back(Vertex(XMFLOAT4(vertex.x * 0.008f, vertex.y * 0.008f, vertex.z * 0.008f, 1.0f) , colors[j % 3], XMFLOAT3(normal.x, normal.y, normal.z), XMFLOAT2(uv.x, uv.y)));
 		}
 
 		for (int j = 0; j < aMesh->mNumFaces; j++) {

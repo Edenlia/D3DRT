@@ -186,7 +186,7 @@ void GenerateMengerSponge(int32_t level, float probability, std::vector<Vertex>&
         indices.push_back(currentIndex + 3);
       }
 
-      const DirectX::XMFLOAT4 n = {normal.m128_f32[0], normal.m128_f32[1], normal.m128_f32[2], 0.f};
+      const DirectX::XMFLOAT3 n = {normal.m128_f32[0], normal.m128_f32[1], normal.m128_f32[2]};
       vertices.push_back(
           {{bottomLeft.x, bottomLeft.y, bottomLeft.z, 1.f}, {1.f, 0.f, 0.f, 1.f}, n});
       vertices.push_back({{bottomLeft.x + dx.m128_f32[0], bottomLeft.y + dx.m128_f32[1],
