@@ -33,8 +33,17 @@ void ModelLoader::LoadModel(const char* path, std::vector<Vertex>& vertices, std
 			aiVector3D vertex = aMesh->mVertices[j];
             aiVector3D normal = aMesh->mNormals[j];
             aiVector3D uv = aMesh->mTextureCoords[0][j];
+			aiVector3D tangent = aMesh->mTangents[j];
+			aiVector3D bitangent = aMesh->mBitangents[j];
 
-            vertices.push_back(Vertex(XMFLOAT4(vertex.x * 0.008f, vertex.y * 0.008f, vertex.z * 0.008f, 1.0f) , colors[j % 3], XMFLOAT3(normal.x, normal.y, normal.z), XMFLOAT2(uv.x, uv.y)));
+			XMFLOAT4 p = XMFLOAT4(vertex.x * 0.008f, vertex.y * 0.008f, vertex.z * 0.008f, 1.0f);
+			XMFLOAT4 c = colors[j % 3];
+			XMFLOAT3 n = XMFLOAT3(normal.x, normal.y, normal.z);
+			XMFLOAT2 u = XMFLOAT2(uv.x, uv.y);
+			XMFLOAT3 t = XMFLOAT3(tangent.x, tangent.y, tangent.z);
+			XMFLOAT3 b = XMFLOAT3(bitangent.x, bitangent.y, bitangent.z);
+
+            vertices.push_back(Vertex(p, c, n, u, t, b));
 		}
 
 		for (int j = 0; j < aMesh->mNumFaces; j++) {
