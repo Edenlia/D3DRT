@@ -76,6 +76,8 @@ void D3DRTWindow::OnInit()
     // Create a buffer to store the modelview and perspective camera matrices
     CreateCameraBuffer();
 
+    CreateMaterialBuffer();
+
     // Create the buffer containing the raytracing result (always output in a
     // UAV), and create the heap referencing the resources used by the raytracing,
     // such as the acceleration structure
@@ -215,15 +217,17 @@ void D3DRTWindow::LoadAssets()
     // and use that range as the sole parameter of the shader. The camera buffer is associated in the
     // index 0, making it accessible in the shader in the b0 register.
     {
+        
+        // Use descriptor range to create rootParameters
+        CD3DX12_ROOT_PARAMETER rootParameters[3];
+        rootParameters[0].InitAsConstantBufferView(0 /*b0*/, 0, D3D12_SHADER_VISIBILITY_ALL);
+
         // Init descriptor range
         CD3DX12_DESCRIPTOR_RANGE srvRange; // for texture
-
-        srvRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
-
-        // Use descriptor range to create rootParameters
-        CD3DX12_ROOT_PARAMETER rootParameters[2];
-        rootParameters[0].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_ALL);
+        srvRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0 /*t0*/);
         rootParameters[1].InitAsDescriptorTable(1, &srvRange, D3D12_SHADER_VISIBILITY_PIXEL);
+
+        rootParameters[2].InitAsConstantBufferView(1 /*b1*/, 0, D3D12_SHADER_VISIBILITY_ALL);
 
         // create a static sampler
         D3D12_STATIC_SAMPLER_DESC sampler = {};
@@ -237,7 +241,7 @@ void D3DRTWindow::LoadAssets()
         sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
         sampler.MinLOD = 0.0f;
         sampler.MaxLOD = D3D12_FLOAT32_MAX;
-        sampler.ShaderRegister = 0;
+        sampler.ShaderRegister = 0; // s0
         sampler.RegisterSpace = 0;
         sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
@@ -543,7 +547,8 @@ void D3DRTWindow::PopulateCommandList()
     // #DXR
     if (m_raster) {
         // set the constant buffer descriptor heap
-        m_commandList->SetGraphicsRootConstantBufferView(0, m_cameraBuffer.Get()->GetGPUVirtualAddress());
+        m_commandList->SetGraphicsRootConstantBufferView(0 /*root sig param 0*/, m_cameraBuffer.Get()->GetGPUVirtualAddress());
+        m_commandList->SetGraphicsRootConstantBufferView(2 /*root sig param 2*/, m_materialBuffer.Get()->GetGPUVirtualAddress());
 
         const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
         m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
@@ -1214,7 +1219,7 @@ void D3DRTWindow::CreateCameraBuffer()
         D3D12_RESOURCE_STATE_GENERIC_READ, nv_helpers_dx12::kUploadHeapProps);
 
     // Create a descriptor heap that will be used by the rasterization shaders
-    m_constHeap = nv_helpers_dx12::CreateDescriptorHeap(
+    m_cameraHeap = nv_helpers_dx12::CreateDescriptorHeap(
         g_device.Get(), 1, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 
     // Describe and create the constant buffer view.
@@ -1225,7 +1230,7 @@ void D3DRTWindow::CreateCameraBuffer()
     // Get a handle to the heap memory on the CPU side, to be able to write the
     // descriptors directly
     D3D12_CPU_DESCRIPTOR_HANDLE srvHandle =
-        m_constHeap->GetCPUDescriptorHandleForHeapStart();
+        m_cameraHeap->GetCPUDescriptorHandleForHeapStart();
     g_device->CreateConstantBufferView(&cbvDesc, srvHandle);
 }
 
@@ -1260,6 +1265,55 @@ void D3DRTWindow::UpdateCameraBuffer()
     ThrowIfFailed(m_cameraBuffer->Map(0, nullptr, (void**)&pData));
     memcpy(pData, matrices.data(), m_cameraBufferSize);
     m_cameraBuffer->Unmap(0, nullptr);
+}
+
+void D3DRTWindow::CreateMaterialBuffer()
+{
+    // align to 256 bytes for the descriptor heap
+    m_materialBufferSize = (sizeof(DisneyMaterialParams) + 255) & ~255;
+
+    // Create the constant buffer for all matrices
+    m_materialBuffer = nv_helpers_dx12::CreateBuffer(
+		g_device.Get(), m_materialBufferSize, D3D12_RESOURCE_FLAG_NONE,
+		D3D12_RESOURCE_STATE_GENERIC_READ, nv_helpers_dx12::kUploadHeapProps);
+
+	// Create a descriptor heap that will be used by the rasterization shaders
+    m_materialHeap = nv_helpers_dx12::CreateDescriptorHeap(
+		g_device.Get(), 1, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+
+	// Describe and create the constant buffer view.
+	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+	cbvDesc.BufferLocation = m_materialBuffer->GetGPUVirtualAddress();
+	cbvDesc.SizeInBytes = m_materialBufferSize;
+
+	// Get a handle to the heap memory on the CPU side, to be able to write the
+	// descriptors directly
+	D3D12_CPU_DESCRIPTOR_HANDLE srvHandle =
+		m_materialHeap->GetCPUDescriptorHandleForHeapStart();
+	g_device->CreateConstantBufferView(&cbvDesc, srvHandle);
+
+    DisneyMaterialParams params = {};
+    params.baseColor = XMFLOAT3(0.82, 0.67, 0.16);
+    params.metallic = 0.9f;
+    params.subsurface = 1.0f;
+    params.specular = 1.0f;
+    params.roughness = 0.0f;
+    params.specularTint = 0.0f;
+    params.anisotropic = 0.0f;
+    params.sheen = 1.0f;
+    params.sheenTint = 0.5f;
+    params.clearcoat = 0.0f;
+    params.clearcoatGloss = 0.0f;
+
+    // Copy material data
+    uint8_t* pData;
+    ThrowIfFailed(m_materialBuffer->Map(0, nullptr, (void**)&pData));
+    memcpy(pData, &params, m_materialBufferSize);
+    m_materialBuffer->Unmap(0, nullptr);
+}
+
+void D3DRTWindow::UpdateMaterialBuffer()
+{
 }
 
 //-----------------------------------------------------------------------------

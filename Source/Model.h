@@ -31,3 +31,19 @@ public:
     XMFLOAT3 TANGENT;
     XMFLOAT3 BITANGENT;
 };
+
+class DisneyMaterialParams
+{
+public:
+    XMFLOAT3 baseColor;
+    float metallic;
+    float subsurface;
+    float specular;
+    float roughness;
+    float specularTint;
+    float anisotropic;
+    float sheen;
+    float sheenTint;
+    float clearcoat;
+    float clearcoatGloss;
+};

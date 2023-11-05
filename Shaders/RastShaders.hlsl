@@ -12,17 +12,17 @@
 #define PI 3.141592653589793
 #define INV_PI 0.3183098861837907
 
-static float3 baseColor = float3(0.82, 0.67, 0.16); 
-static float metallic = 0.3; // 0 1 0
-static float subsurface = 1.0; // 0 1 0
-static float specular = 1.0; // 0 1 0.5
-static float roughness = 0.9; // 0 1 0.5
-static float specularTint = 0.0; // 0 1 0
-static float anisotropic = 0.0; // 0 1 0
-static float sheen = 1.0; // 0 1 0
-static float sheenTint = 0.5; // 0 1 0.5
-static float clearcoat = 0.0; // 0 1 0
-static float clearcoatGloss = 0.0; // 0 1 0
+//static float3 baseColor = float3(0.82, 0.67, 0.16); 
+//static float metallic = 0.3; // 0 1 0
+//static float subsurface = 1.0; // 0 1 0
+//static float specular = 1.0; // 0 1 0.5
+//static float roughness = 0.9; // 0 1 0.5
+//static float specularTint = 0.0; // 0 1 0
+//static float anisotropic = 0.0; // 0 1 0
+//static float sheen = 1.0; // 0 1 0
+//static float sheenTint = 0.5; // 0 1 0.5
+//static float clearcoat = 0.0; // 0 1 0
+//static float clearcoatGloss = 0.0; // 0 1 0
 
 // #DXR Extra: Perspective Camera
 cbuffer CameraParams : register(b0)
@@ -31,6 +31,21 @@ cbuffer CameraParams : register(b0)
     float4x4 projection;
     float4x4 viewInv;
     float4x4 projectionInv;
+}
+
+cbuffer DisneyMaterialParams : register(b1)
+{
+    float3 baseColor;
+    float metallic;
+    float subsurface;
+    float specular;
+    float roughness;
+    float specularTint;
+    float anisotropic;
+    float sheen;
+    float sheenTint;
+    float clearcoat;
+    float clearcoatGloss;
 }
 
 Texture2D t1 : register(t0);
@@ -150,6 +165,7 @@ float3 mon2lin(float3 x)
 }
 
 
+// https://github.com/wdas/brdf/blob/main/src/brdfs/disney.brdf
 float3 Disney_BRDF(float3 L, float3 V, float3 N, float3 X, float3 Y)
 {
     float NdotL = dot(N, L);
@@ -264,7 +280,10 @@ float4 PSMain(PSInput input) : SV_TARGET
     
     float3 brdf = Disney_BRDF(wi, wo, n, x, y);
     
-    float3 color = albedo.xyz * brdf * lightIntensity * max(0, dot(n, wi));
+    float3 color = brdf * lightIntensity * max(0, dot(n, wi));
+    
+    // Gamma correction
+    // color = pow(color, 1.0 / 2.2);
     
     return float4(color, 1.0);
 }
