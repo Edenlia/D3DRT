@@ -21,6 +21,9 @@
 #include "GraphicsCore.h"
 #include "Model.h"
 #include "ModelLoader.h"
+#include "imgui.h"
+#include "imgui_impl_win32.h"
+#include "imgui_impl_dx12.h"
 
 using namespace DirectX;
 
@@ -48,6 +51,20 @@ inline void AllocateUAVBuffer(ID3D12Device* pDevice, UINT64 bufferSize, ID3D12Re
         (*ppResource)->SetName(resourceName);
     }
 }
+
+struct ImGuiParams {
+    ImVec4 baseColor;
+    float metallic;
+    float subsurface;
+    float specular;
+    float roughness;
+    float specularTint;
+    float anisotropic;
+    float sheen;
+    float sheenTint;
+    float clearcoat;
+    float clearcoatGloss;
+};
 
 
 class D3DRTWindow : public DXSample
@@ -172,8 +189,11 @@ private:
 
     ComPtr<ID3D12Resource> m_textureUploadBuffer;
     ComPtr<ID3D12Resource> m_textureBuffer;
-    ComPtr<ID3D12DescriptorHeap> m_textureDescHeap;
+    ComPtr<ID3D12DescriptorHeap> m_rastSrvUavDescHeap;
 
+    ImGuiIO* m_imGuiIO;
+
+    ImGuiParams m_imGuiParams;
 
     // Synchronization objects.
     UINT m_frameIndex;
@@ -220,6 +240,11 @@ private:
 
     void CreateMaterialBuffer();
     void UpdateMaterialBuffer();
+
+    void CreateRasterizerDescriptorHeap();
+
+    void InitImGui();
+    void RenderImGui();
 
     // #DXR Extra: Per-Instance Data
     void CreatePlaneVB();

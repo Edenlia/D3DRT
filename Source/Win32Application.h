@@ -13,6 +13,9 @@
 
 #include "DXSample.h"
 #include "RenderTime.h"
+#include "imgui.h"
+#include "imgui_impl_win32.h"
+#include "imgui_impl_dx12.h"
 
 class DXSample;
 
@@ -28,4 +31,5 @@ protected:
 
 private:
     static HWND m_hwnd;
+    static ImGuiIO* m_imGuiIO;
 };

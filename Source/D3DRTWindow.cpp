@@ -44,6 +44,9 @@ void D3DRTWindow::OnInit()
         glm::vec3(0, 1, 0));
     LoadPipeline();
     LoadAssets();
+
+    InitImGui();
+
     // #DXR - Per Instance
     // Create a vertex buffer for a ground plane, similarly to the triangle definition above
     CreatePlaneVB();
@@ -223,7 +226,7 @@ void D3DRTWindow::LoadAssets()
         rootParameters[0].InitAsConstantBufferView(0 /*b0*/, 0, D3D12_SHADER_VISIBILITY_ALL);
 
         // Init descriptor range
-        CD3DX12_DESCRIPTOR_RANGE srvRange; // for texture
+        CD3DX12_DESCRIPTOR_RANGE srvRange; // for texture and imgui
         srvRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0 /*t0*/);
         rootParameters[1].InitAsDescriptorTable(1, &srvRange, D3D12_SHADER_VISIBILITY_PIXEL);
 
@@ -310,6 +313,10 @@ void D3DRTWindow::LoadAssets()
         psoDesc.SampleDesc.Count = 1;
         
         ThrowIfFailed(g_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
+    }
+
+    {
+        CreateRasterizerDescriptorHeap();
     }
 
     // Create the command list.
@@ -414,11 +421,14 @@ void D3DRTWindow::OnUpdate()
 {
     // #DXR Extra: Perspective Camera
     UpdateCameraBuffer();
+    UpdateMaterialBuffer();
 }
 
 // Render the scene.
 void D3DRTWindow::OnRender()
 {
+    RenderImGui();
+
     // Record all the commands we need to render the scene into the command list.
     PopulateCommandList();
 
@@ -452,11 +462,21 @@ void D3DRTWindow::OnKeyUp(UINT8 key)
 
 void D3DRTWindow::OnButtonDown(UINT32 lParam)
 {
+    bool is_hovered_in_imgui = ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+    if (is_hovered_in_imgui) {
+		return;
+	}
+
     nv_helpers_dx12::CameraManip.setMousePosition(-GET_X_LPARAM(lParam), -GET_Y_LPARAM(lParam));
 }
 
 void D3DRTWindow::OnMouseMove(UINT8 wParam, UINT32 lParam)
 {
+    bool is_hovered_in_imgui = ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+    if (is_hovered_in_imgui) {
+        return;
+    }
+
     using nv_helpers_dx12::Manipulator;
     Manipulator::Inputs inputs;
     inputs.lmb = wParam & MK_LBUTTON;
@@ -574,13 +594,15 @@ void D3DRTWindow::PopulateCommandList()
 
         // Draw model
         // set the root descriptor table 1 to the texture descriptor heap
-        std::vector< ID3D12DescriptorHeap* > heaps = { m_textureDescHeap.Get() };
+        std::vector< ID3D12DescriptorHeap* > heaps = { m_rastSrvUavDescHeap.Get() };
         m_commandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
         m_commandList->SetGraphicsRootDescriptorTable(
-            1, m_textureDescHeap->GetGPUDescriptorHandleForHeapStart());
+            1, m_rastSrvUavDescHeap->GetGPUDescriptorHandleForHeapStart());
         m_commandList->IASetVertexBuffers(0, 1, &m_modelVertexBufferView);
         m_commandList->IASetIndexBuffer(&m_modelIndexBufferView);
         m_commandList->DrawIndexedInstanced(m_modelIndexCount, 1, 0, 0, 0);
+
+        ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), m_commandList.Get());
 
     }
     else {
@@ -1314,6 +1336,113 @@ void D3DRTWindow::CreateMaterialBuffer()
 
 void D3DRTWindow::UpdateMaterialBuffer()
 {
+    DisneyMaterialParams params = {};
+    params.baseColor = XMFLOAT3(m_imGuiParams.baseColor.x, m_imGuiParams.baseColor.y, m_imGuiParams.baseColor.z);
+    params.metallic = m_imGuiParams.metallic;
+    params.subsurface = m_imGuiParams.subsurface;
+    params.specular = m_imGuiParams.specular;
+    params.roughness = m_imGuiParams.roughness;
+    params.specularTint = m_imGuiParams.specularTint;
+    params.anisotropic = m_imGuiParams.anisotropic;
+    params.sheen = m_imGuiParams.sheen;
+    params.sheenTint = m_imGuiParams.sheenTint;
+    params.clearcoat = m_imGuiParams.clearcoat;
+    params.clearcoatGloss = m_imGuiParams.clearcoatGloss;
+
+    // Copy material data
+    uint8_t* pData;
+    ThrowIfFailed(m_materialBuffer->Map(0, nullptr, (void**)&pData));
+    memcpy(pData, &params, m_materialBufferSize);
+    m_materialBuffer->Unmap(0, nullptr);
+}
+
+void D3DRTWindow::CreateRasterizerDescriptorHeap()
+{
+    // Create descriptor heap for default heap buffer
+    D3D12_DESCRIPTOR_HEAP_DESC rasterizerDescHeapDesc = {};
+    rasterizerDescHeapDesc.NumDescriptors = 2; // 1 is the texture, 2 is for imgui
+    rasterizerDescHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    rasterizerDescHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+
+    ThrowIfFailed(g_device->CreateDescriptorHeap(&rasterizerDescHeapDesc, IID_PPV_ARGS(&m_rastSrvUavDescHeap)));
+}
+
+void D3DRTWindow::InitImGui()
+{
+    // Setup Dear ImGui context
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+    m_imGuiIO = &ImGui::GetIO();
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+    //ImGui::StyleColorsLight();
+
+    D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_rastSrvUavDescHeap->GetCPUDescriptorHandleForHeapStart();
+    D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = m_rastSrvUavDescHeap->GetGPUDescriptorHandleForHeapStart();
+    cpuHandle.ptr += g_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    gpuHandle.ptr += g_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplWin32_Init(Win32Application::GetHwnd());
+    ImGui_ImplDX12_Init(g_device.Get(), 3 /*TODO: Not sure*/,
+        DXGI_FORMAT_R8G8B8A8_UNORM, m_rastSrvUavDescHeap.Get(),
+        cpuHandle,
+        gpuHandle);
+
+    m_imGuiParams = {};
+    m_imGuiParams.baseColor = ImVec4(0.82, 0.67, 0.16, 1);
+    m_imGuiParams.metallic = 0.9f;
+    m_imGuiParams.subsurface = 1.0f;
+    m_imGuiParams.specular = 1.0f;
+    m_imGuiParams.roughness = 0.0f;
+    m_imGuiParams.specularTint = 0.0f;
+    m_imGuiParams.anisotropic = 0.0f;
+    m_imGuiParams.sheen = 1.0f;
+    m_imGuiParams.sheenTint = 0.5f;
+    m_imGuiParams.clearcoat = 0.0f;
+    m_imGuiParams.clearcoatGloss = 0.0f;
+
+}
+
+void D3DRTWindow::RenderImGui()
+{
+    // Start the Dear ImGui frame
+    ImGui_ImplDX12_NewFrame();
+    ImGui_ImplWin32_NewFrame();
+    ImGui::NewFrame();
+
+    // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
+    {
+
+        ImGui::Begin("Material");                          // Create a window called "Hello, world!" and append into it.
+
+        ImGui::Text("adjust material params.");               // Display some text (you can use a format strings too)
+
+        
+        ImGui::ColorEdit3("base color", (float*)&m_imGuiParams.baseColor); // Edit 3 floats representing a color
+        ImGui::SliderFloat("metallic", &m_imGuiParams.metallic, 0.0f, 1.0f);
+        ImGui::SliderFloat("subsurface", &m_imGuiParams.subsurface, 0.0f, 1.0f);
+        ImGui::SliderFloat("specular", &m_imGuiParams.specular, 0.0f, 1.0f);
+        ImGui::SliderFloat("roughness", &m_imGuiParams.roughness, 0.0f, 1.0f);
+        ImGui::SliderFloat("specularTint", &m_imGuiParams.specularTint, 0.0f, 1.0f);
+        ImGui::SliderFloat("anisotropic", &m_imGuiParams.anisotropic, 0.0f, 1.0f);
+        ImGui::SliderFloat("sheen", &m_imGuiParams.sheen, 0.0f, 1.0f);
+        ImGui::SliderFloat("sheenTint", &m_imGuiParams.sheenTint, 0.0f, 1.0f);
+        ImGui::SliderFloat("clearcoat", &m_imGuiParams.clearcoat, 0.0f, 1.0f);
+        ImGui::SliderFloat("clearcoatGloss", &m_imGuiParams.clearcoatGloss, 0.0f, 1.0f);
+
+
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / m_imGuiIO->Framerate, m_imGuiIO->Framerate);
+        ImGui::End();
+    }
+
+    // Rendering
+    ImGui::Render();
 }
 
 //-----------------------------------------------------------------------------
@@ -1748,17 +1877,8 @@ void D3DRTWindow::CreateModel() {
                 D3D12_RESOURCE_STATE_COPY_DEST,
                 D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 
-
-        // Create descriptor heap for default heap buffer
-        D3D12_DESCRIPTOR_HEAP_DESC textureDescHeapDesc = {};
-        textureDescHeapDesc.NumDescriptors = 1;
-        textureDescHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-        textureDescHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-
-        ThrowIfFailed(g_device->CreateDescriptorHeap(&textureDescHeapDesc, IID_PPV_ARGS(&m_textureDescHeap)));
-
         // Create SRV based on default heap buffer
-        D3D12_CPU_DESCRIPTOR_HANDLE textureDescHeapHandle = m_textureDescHeap->GetCPUDescriptorHandleForHeapStart();
+        D3D12_CPU_DESCRIPTOR_HANDLE textureDescHeapHandle = m_rastSrvUavDescHeap->GetCPUDescriptorHandleForHeapStart();
 
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;

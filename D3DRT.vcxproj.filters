@@ -49,6 +49,7 @@
     <ClCompile Include="Source\GraphicsCore.cpp" />
     <ClCompile Include="Source\ModelLoader.cpp" />
     <ClCompile Include="Source\Model.cpp" />
+    <ClCompile Include="Source\ImGuiSample.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\DXAPI\d3dx12.h" />
@@ -100,6 +101,7 @@
     </ClInclude>
     <ClInclude Include="Source\ModelLoader.h" />
     <ClInclude Include="Source\Model.h" />
+    <ClInclude Include="Source\ImGuiSample.h" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="Shaders\ShadowRay.hlsl" />
