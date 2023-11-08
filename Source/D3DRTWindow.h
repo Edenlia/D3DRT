@@ -15,11 +15,12 @@
 #include "DXSample.h"
 #include <dxcapi.h>
 #include <vector>
-#include "./DXRHelpers/nv_helpers_dx12/TopLevelASGenerator.h"
-#include "./DXRHelpers/nv_helpers_dx12/BottomLevelASGenerator.h"
-#include "./DXRHelpers/nv_helpers_dx12/ShaderBindingTableGenerator.h"
+#include "DXRHelpers/nv_helpers_dx12/TopLevelASGenerator.h"
+#include "DXRHelpers/nv_helpers_dx12/BottomLevelASGenerator.h"
+#include "DXRHelpers/nv_helpers_dx12/ShaderBindingTableGenerator.h"
 #include "GraphicsCore.h"
-#include "Model.h"
+#include "Meshes/Mesh.h"
+#include "Meshes/MeshResource.h"
 #include "ModelLoader.h"
 #include "imgui.h"
 #include "imgui_impl_win32.h"
@@ -34,6 +35,9 @@ using namespace DirectX;
 // An example of this can be found in the class method: OnDestroy().
 using Microsoft::WRL::ComPtr;
 using Graphics::g_device;
+using Graphics::g_commandAllocator;
+using Graphics::g_commandQueue;
+using Graphics::g_commandList;
 
 inline void AllocateUAVBuffer(ID3D12Device* pDevice, UINT64 bufferSize, ID3D12Resource** ppResource, D3D12_RESOURCE_STATES initialResourceState = D3D12_RESOURCE_STATE_COMMON, const wchar_t* resourceName = nullptr)
 {
@@ -104,12 +108,9 @@ private:
     CD3DX12_RECT m_scissorRect;
     ComPtr<IDXGISwapChain3> m_swapChain;
     ComPtr<ID3D12Resource> m_renderTargets[FrameCount];
-    ComPtr<ID3D12CommandAllocator> m_commandAllocator;
-    ComPtr<ID3D12CommandQueue> m_commandQueue;
     ComPtr<ID3D12RootSignature> m_rootSignature;
     ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
     ComPtr<ID3D12PipelineState> m_pipelineState;
-    ComPtr<ID3D12GraphicsCommandList4> m_commandList;
     UINT m_rtvDescriptorSize;
 
     // App resources.
@@ -129,6 +130,8 @@ private:
 
     UINT m_modelVertexCount;
     UINT m_modelIndexCount;
+
+    std::shared_ptr<MeshResource> m_dragonMeshResource;
 
     void CreateModel();
 

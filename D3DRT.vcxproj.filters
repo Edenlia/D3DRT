@@ -48,8 +48,10 @@
     <ClCompile Include="Source\RootSignature.cpp" />
     <ClCompile Include="Source\GraphicsCore.cpp" />
     <ClCompile Include="Source\ModelLoader.cpp" />
-    <ClCompile Include="Source\Model.cpp" />
+    <ClCompile Include="Source\Meshes\Mesh.cpp" />
     <ClCompile Include="Source\ImGuiSample.cpp" />
+    <ClCompile Include="Source\Materials\Material.cpp" />
+    <ClCompile Include="Source\Meshes\MeshResource.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\DXAPI\d3dx12.h" />
@@ -100,8 +102,10 @@
       <Filter>stb</Filter>
     </ClInclude>
     <ClInclude Include="Source\ModelLoader.h" />
-    <ClInclude Include="Source\Model.h" />
+    <ClInclude Include="Source\Meshes\Mesh.h" />
     <ClInclude Include="Source\ImGuiSample.h" />
+    <ClInclude Include="Source\Materials\Material.h" />
+    <ClInclude Include="Source\Meshes\MeshResource.h" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="Shaders\ShadowRay.hlsl" />

@@ -93,7 +93,7 @@ void D3DRTWindow::OnInit()
     // Command lists are created in the recording state, but there is
     // nothing to record yet. The main loop expects it to be closed, so
     // close it now.
-    ThrowIfFailed(m_commandList->Close());
+    ThrowIfFailed(g_commandList->Close());
 
 }
 
@@ -153,7 +153,7 @@ void D3DRTWindow::LoadPipeline()
     queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
     queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 
-    ThrowIfFailed(g_device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_commandQueue)));
+    ThrowIfFailed(g_device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&g_commandQueue)));
 
     // Describe and create the swap chain.
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
@@ -167,7 +167,7 @@ void D3DRTWindow::LoadPipeline()
 
     ComPtr<IDXGISwapChain1> swapChain;
     ThrowIfFailed(factory->CreateSwapChainForHwnd(
-        m_commandQueue.Get(),        // Swap chain needs the queue so that it can force a flush on it.
+        g_commandQueue.Get(),        // Swap chain needs the queue so that it can force a flush on it.
         Win32Application::GetHwnd(),
         &swapChainDesc,
         nullptr,
@@ -206,7 +206,7 @@ void D3DRTWindow::LoadPipeline()
         }
     }
 
-    ThrowIfFailed(g_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator)));
+    ThrowIfFailed(g_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&g_commandAllocator)));
 }
 
 // Load the sample assets.
@@ -320,7 +320,7 @@ void D3DRTWindow::LoadAssets()
     }
 
     // Create the command list.
-    ThrowIfFailed(g_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator.Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
+    ThrowIfFailed(g_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_commandAllocator.Get(), m_pipelineState.Get(), IID_PPV_ARGS(&g_commandList)));
 
     // Create the vertex buffer and index buffer.
     {
@@ -391,7 +391,7 @@ void D3DRTWindow::LoadAssets()
     }
 
     // #DXR Extra: Indexed Geometry
-    CreateMengerSpongeVB();
+    // CreateMengerSpongeVB();
 
     CreateModel();
 
@@ -433,8 +433,8 @@ void D3DRTWindow::OnRender()
     PopulateCommandList();
 
     // Execute the command list.
-    ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
-    m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+    ID3D12CommandList* ppCommandLists[] = { g_commandList.Get() };
+    g_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
     // Present the frame.
     ThrowIfFailed(m_swapChain->Present(1, 0));
@@ -513,7 +513,7 @@ ComPtr<ID3D12Resource> D3DRTWindow::CreateDefaultBuffer(const void* const initDa
         IID_PPV_ARGS(&defaultBuffer)));
 
     // Set resource state from common to copy destination (default heap is the receive target)
-    m_commandList->ResourceBarrier(1,
+    g_commandList->ResourceBarrier(1,
         &CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer.Get(),
             D3D12_RESOURCE_STATE_COMMON,
             D3D12_RESOURCE_STATE_COPY_DEST));
@@ -525,10 +525,10 @@ ComPtr<ID3D12Resource> D3DRTWindow::CreateDefaultBuffer(const void* const initDa
     subResourceData.SlicePitch = subResourceData.RowPitch;
     // Core function UpdateSubresources: copy data from cpu memory to upload heap, then copy data from upload heap to default heap
     // The sixth parameter is the max number of subresources to be copied  (Defined in template, means have 2 subresources).
-    UpdateSubresources<1>(m_commandList.Get(), defaultBuffer.Get(), uploadBuffer.Get(), 0, 0, 1, &subResourceData);
+    UpdateSubresources<1>(g_commandList.Get(), defaultBuffer.Get(), uploadBuffer.Get(), 0, 0, 1, &subResourceData);
 
     // Set resource state from copy destination to generic read (only shader can access to it)
-    m_commandList->ResourceBarrier(1,
+    g_commandList->ResourceBarrier(1,
         &CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer.Get(),
             D3D12_RESOURCE_STATE_COPY_DEST,
             D3D12_RESOURCE_STATE_GENERIC_READ));
@@ -541,68 +541,68 @@ void D3DRTWindow::PopulateCommandList()
     // Command list allocators can only be reset when the associated 
     // command lists have finished execution on the GPU; apps should use 
     // fences to determine GPU execution progress.
-    ThrowIfFailed(m_commandAllocator->Reset());
+    ThrowIfFailed(g_commandAllocator->Reset());
 
     // However, when ExecuteCommandList() is called on a particular command 
     // list, that command list can then be reset at any time and must be before 
     // re-recording.
-    ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), m_pipelineState.Get()));
+    ThrowIfFailed(g_commandList->Reset(g_commandAllocator.Get(), m_pipelineState.Get()));
 
     // Set necessary state.
-    m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
-    m_commandList->RSSetViewports(1, &m_viewport);
-    m_commandList->RSSetScissorRects(1, &m_scissorRect);
+    g_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
+    g_commandList->RSSetViewports(1, &m_viewport);
+    g_commandList->RSSetScissorRects(1, &m_scissorRect);
 
     // Indicate that the back buffer will be used as a render target.
-    m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+    g_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
     // #DXR Extra: Depth Buffering
     // Bind the depth buffer as a render target
     CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
 
-    m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+    g_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
     // Record commands.
     // #DXR
     if (m_raster) {
         // set the constant buffer descriptor heap
-        m_commandList->SetGraphicsRootConstantBufferView(0 /*root sig param 0*/, m_cameraBuffer.Get()->GetGPUVirtualAddress());
-        m_commandList->SetGraphicsRootConstantBufferView(2 /*root sig param 2*/, m_materialBuffer.Get()->GetGPUVirtualAddress());
+        g_commandList->SetGraphicsRootConstantBufferView(0 /*root sig param 0*/, m_cameraBuffer.Get()->GetGPUVirtualAddress());
+        g_commandList->SetGraphicsRootConstantBufferView(2 /*root sig param 2*/, m_materialBuffer.Get()->GetGPUVirtualAddress());
 
         const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
-        m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-        m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        g_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+        g_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         // #DXR Extra: Depth Buffering
-        m_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+        g_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
         // #DXR Extra: Per-Instance Data
         // In a way similar to triangle rendering, rasterize the plane
-        m_commandList->IASetVertexBuffers(0, 1, &m_planeBufferView);
-        m_commandList->DrawInstanced(6, 1, 0, 0);
+        g_commandList->IASetVertexBuffers(0, 1, &m_planeBufferView);
+        g_commandList->DrawInstanced(6, 1, 0, 0);
 
         //// Indexed triangle rendering
-        //m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
-        //m_commandList->IASetIndexBuffer(&m_indexBufferView);
-        //m_commandList->DrawIndexedInstanced(12, 1, 0, 0, 0);
+        //g_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
+        //g_commandList->IASetIndexBuffer(&m_indexBufferView);
+        //g_commandList->DrawIndexedInstanced(12, 1, 0, 0, 0);
 
         //// #DXR Extra: Indexed Geometry
         //// In a way similar to triangle rendering, rasterize the Menger Sponge
-        //m_commandList->IASetVertexBuffers(0, 1, &m_mengerVBView);
-        //m_commandList->IASetIndexBuffer(&m_mengerIBView);
-        //m_commandList->DrawIndexedInstanced(m_mengerIndexCount, 1, 0, 0, 0);
+        //g_commandList->IASetVertexBuffers(0, 1, &m_mengerVBView);
+        //g_commandList->IASetIndexBuffer(&m_mengerIBView);
+        //g_commandList->DrawIndexedInstanced(m_mengerIndexCount, 1, 0, 0, 0);
 
         // Draw model
         // set the root descriptor table 1 to the texture descriptor heap
         std::vector< ID3D12DescriptorHeap* > heaps = { m_rastSrvUavDescHeap.Get() };
-        m_commandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
-        m_commandList->SetGraphicsRootDescriptorTable(
+        g_commandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
+        g_commandList->SetGraphicsRootDescriptorTable(
             1, m_rastSrvUavDescHeap->GetGPUDescriptorHandleForHeapStart());
-        m_commandList->IASetVertexBuffers(0, 1, &m_modelVertexBufferView);
-        m_commandList->IASetIndexBuffer(&m_modelIndexBufferView);
-        m_commandList->DrawIndexedInstanced(m_modelIndexCount, 1, 0, 0, 0);
+        g_commandList->IASetVertexBuffers(0, 1, &m_dragonMeshResource->GetVertexBufferView());
+        g_commandList->IASetIndexBuffer(&m_dragonMeshResource->GetIndexBufferView());
+        g_commandList->DrawIndexedInstanced(m_dragonMeshResource->GetIndexCount(), 1, 0, 0, 0);
 
-        ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), m_commandList.Get());
+        ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), g_commandList.Get());
 
     }
     else {
@@ -610,7 +610,7 @@ void D3DRTWindow::PopulateCommandList()
         // Bind the descriptor heap giving access to the top-level acceleration
         // structure, as well as the raytracing output
         std::vector<ID3D12DescriptorHeap*> heaps = { m_srvUavHeap.Get() };
-        m_commandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()),
+        g_commandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()),
             heaps.data());
 
         // On the last frame, the raytracing output was used as a copy source, to
@@ -619,7 +619,7 @@ void D3DRTWindow::PopulateCommandList()
         CD3DX12_RESOURCE_BARRIER transition = CD3DX12_RESOURCE_BARRIER::Transition(
             m_outputResource.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE,
             D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-        m_commandList->ResourceBarrier(1, &transition);
+        g_commandList->ResourceBarrier(1, &transition);
 
         // Setup the raytracing task
         D3D12_DISPATCH_RAYS_DESC desc = {};
@@ -654,9 +654,9 @@ void D3DRTWindow::PopulateCommandList()
         desc.Height = GetHeight();
         desc.Depth = 1;
         // Bind the raytracing pipeline
-        m_commandList->SetPipelineState1(m_rtStateObject.Get());
+        g_commandList->SetPipelineState1(m_rtStateObject.Get());
         // Dispatch the rays and write to the raytracing output
-        m_commandList->DispatchRays(&desc);
+        g_commandList->DispatchRays(&desc);
 
         // The raytracing output needs to be copied to the actual render target used
         // for display. For this, we need to transition the raytracing output from a
@@ -666,26 +666,26 @@ void D3DRTWindow::PopulateCommandList()
         transition = CD3DX12_RESOURCE_BARRIER::Transition(
             m_outputResource.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
             D3D12_RESOURCE_STATE_COPY_SOURCE);
-        m_commandList->ResourceBarrier(1, &transition);
+        g_commandList->ResourceBarrier(1, &transition);
         transition = CD3DX12_RESOURCE_BARRIER::Transition(
             m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET,
             D3D12_RESOURCE_STATE_COPY_DEST);
-        m_commandList->ResourceBarrier(1, &transition);
+        g_commandList->ResourceBarrier(1, &transition);
 
-        m_commandList->CopyResource(m_renderTargets[m_frameIndex].Get(),
+        g_commandList->CopyResource(m_renderTargets[m_frameIndex].Get(),
             m_outputResource.Get());
 
         transition = CD3DX12_RESOURCE_BARRIER::Transition(
             m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_COPY_DEST,
             D3D12_RESOURCE_STATE_RENDER_TARGET);
-        m_commandList->ResourceBarrier(1, &transition);
+        g_commandList->ResourceBarrier(1, &transition);
     }
     
 
     // Indicate that the back buffer will now be used to present.
-    m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+    g_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
-    ThrowIfFailed(m_commandList->Close());
+    ThrowIfFailed(g_commandList->Close());
 }
 
 //-----------------------------------------------------------------------------
@@ -741,7 +741,7 @@ D3DRTWindow::AccelerationStructureBuffers D3DRTWindow::CreateBottomLevelAS(
     // Build the acceleration structure. Note that this call integrates a barrier
     // on the generated AS, so that it can be used to compute a top-level AS right
     // after this method.
-    bottomLevelAS.Generate(m_commandList.Get(), buffers.pScratch.Get(),
+    bottomLevelAS.Generate(g_commandList.Get(), buffers.pScratch.Get(),
         buffers.pResult.Get(), false, nullptr);
 
     return buffers;
@@ -886,11 +886,13 @@ void D3DRTWindow::CreateShaderBindingTable()
     m_sbtHelper.AddHitGroup(L"ShadowHitGroup", {});
 
     // menger sponge fractal
-    m_sbtHelper.AddHitGroup(L"HitGroup", {
-        (void*)(m_perInstanceConstantBuffers[0]->GetGPUVirtualAddress()),
-        (void*)(m_mengerVB->GetGPUVirtualAddress()),
-        (void*)(m_mengerIB->GetGPUVirtualAddress())
-        });
+    //m_sbtHelper.AddHitGroup(L"HitGroup", {
+    //    (void*)(m_perInstanceConstantBuffers[0]->GetGPUVirtualAddress()),
+    //    (void*)(m_mengerVB->GetGPUVirtualAddress()),
+    //    (void*)(m_mengerIB->GetGPUVirtualAddress())
+    //    });
+
+
     //// #DXR Extra - Another ray type
     m_sbtHelper.AddHitGroup(L"ShadowHitGroup", {});
 
@@ -960,7 +962,7 @@ void D3DRTWindow::CreateTopLevelAS(const std::vector<std::pair<ComPtr<ID3D12Reso
     // can build the acceleration structure. Note that in the case of the update
     // we also pass the existing AS as the 'previous' AS, so that it can be
     // refitted in place.
-    m_topLevelASGenerator.Generate(m_commandList.Get(),
+    m_topLevelASGenerator.Generate(g_commandList.Get(),
         m_topLevelASBuffers.pScratch.Get(),
         m_topLevelASBuffers.pResult.Get(),
         m_topLevelASBuffers.pInstanceDesc.Get());
@@ -980,9 +982,9 @@ void D3DRTWindow::CreateAccelerationStructures()
     // Build the bottom AS from the Menger Sponge vertex buffer
     // #DXR Extra: Indexed Geometry
     // Build the bottom AS from the Menger Sponge vertex buffer
-    AccelerationStructureBuffers mengerBottomLevelBuffers =
-        CreateBottomLevelAS({ {m_mengerVB.Get(), m_mengerVertexCount}},
-            { {m_mengerIB.Get(), m_mengerIndexCount}  });
+    //AccelerationStructureBuffers mengerBottomLevelBuffers =
+    //    CreateBottomLevelAS({ {m_mengerVB.Get(), m_mengerVertexCount}},
+    //        { {m_mengerIB.Get(), m_mengerIndexCount}  });
 
     AccelerationStructureBuffers sphereBottomLevelBuffers = CreateAABBBottomLevelAS();
 
@@ -993,17 +995,17 @@ void D3DRTWindow::CreateAccelerationStructures()
         {bottomLevelBuffers.pResult, XMMatrixTranslation(-.6f, 0, 0)},
         {bottomLevelBuffers.pResult, XMMatrixTranslation(.6f, 0, 0)},
         {planeBottomLevelBuffers.pResult, XMMatrixTranslation(0, 0, 0)},
-        {mengerBottomLevelBuffers.pResult, XMMatrixIdentity() /*add merger sponge*/},
+//        {mengerBottomLevelBuffers.pResult, XMMatrixIdentity() /*add merger sponge*/},
         {sphereBottomLevelBuffers.pResult, XMMatrixIdentity()},
     };
     CreateTopLevelAS(m_instances);
 
     // Flush the command list and wait for it to finish
-    m_commandList->Close();
-    ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
-    m_commandQueue->ExecuteCommandLists(1, ppCommandLists);
+    g_commandList->Close();
+    ID3D12CommandList* ppCommandLists[] = { g_commandList.Get() };
+    g_commandQueue->ExecuteCommandLists(1, ppCommandLists);
     m_fenceValue++;
-    m_commandQueue->Signal(m_fence.Get(), m_fenceValue);
+    g_commandQueue->Signal(m_fence.Get(), m_fenceValue);
 
     m_fence->SetEventOnCompletion(m_fenceValue, m_fenceEvent);
     WaitForSingleObject(m_fenceEvent, INFINITE);
@@ -1011,7 +1013,7 @@ void D3DRTWindow::CreateAccelerationStructures()
     // Once the command list is finished executing, reset it to be reused for
     // rendering
     ThrowIfFailed(
-        m_commandList->Reset(m_commandAllocator.Get(), m_pipelineState.Get()));
+        g_commandList->Reset(g_commandAllocator.Get(), m_pipelineState.Get()));
 
     // Store the AS buffers. The rest of the buffers will be released once we exit
     // the function
@@ -1028,7 +1030,7 @@ void D3DRTWindow::WaitForPreviousFrame()
 
     // Signal and increment the fence value.
     const UINT64 fence = m_fenceValue;
-    ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), fence));
+    ThrowIfFailed(g_commandQueue->Signal(m_fence.Get(), fence));
     m_fenceValue++;
 
     // Wait until the previous frame is finished.
@@ -1454,9 +1456,9 @@ void D3DRTWindow::CreatePlaneVB()
 {
     // Define the geometry for a plane.
     Vertex planeVertices[] = {
-        {{-00.f, -1.3f, 010.f, 1.0f}, {0.0f, 0.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}}, // 0
-        {{-00.f, -1.3f, -00.f, 1.0f}, {0.0f, 0.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}}, // 1
-        {{010.f, -1.3f, 010.f, 1.0f}, {0.0f, 0.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}}, // 2
+        {{-00.f, -1.3f, 010.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f}}, // 0
+        {{-00.f, -1.3f, -00.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f}}, // 1
+        {{010.f, -1.3f, 010.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f}}, // 2
         {{010.f, -1.3f, 010.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f}}, // 2
         {{-00.f, -1.3f, -00.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f}}, // 1
         {{010.f, -1.3f, -00.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f}}  // 4
@@ -1765,7 +1767,7 @@ D3DRTWindow::AccelerationStructureBuffers D3DRTWindow::CreateAABBBottomLevelAS()
     }
 
     // Build the acceleration structure.
-    m_commandList->BuildRaytracingAccelerationStructure(&bottomLevelBuildDesc, 0, nullptr);
+    g_commandList->BuildRaytracingAccelerationStructure(&bottomLevelBuildDesc, 0, nullptr);
 
     AccelerationStructureBuffers bottomLevelASBuffers;
     bottomLevelASBuffers.pResult = bottomLevelAS;
@@ -1783,10 +1785,15 @@ void D3DRTWindow::CreateModel() {
     // Load the model
     ModelLoader::LoadModel("Models/stanford-dragon-pbr/model.dae", vertices, indices);
 
-    {
-        const UINT modelVBSize = static_cast<UINT>(vertices.size()) * sizeof(Vertex);
+    std::shared_ptr<Mesh> dragonMesh = std::make_shared<Mesh>(vertices, indices);
 
-        m_modelVertexDefaultBuffer = CreateDefaultBuffer(vertices.data(), modelVBSize, m_modelVertexUploadBuffer);
+    m_dragonMeshResource = std::make_shared<MeshResource>(dragonMesh, "dragon");
+    m_dragonMeshResource->UploadResource();
+
+    /* {
+        const UINT modelVBSize = static_cast<UINT>(dragonMesh->GetVertices().size()) * sizeof(Vertex);
+
+        m_modelVertexDefaultBuffer = CreateDefaultBuffer(dragonMesh->GetVertices().data(), modelVBSize, m_modelVertexUploadBuffer);
 
         m_modelVertexBufferView.BufferLocation = m_modelVertexDefaultBuffer->GetGPUVirtualAddress();
         m_modelVertexBufferView.StrideInBytes = sizeof(Vertex);
@@ -1794,17 +1801,17 @@ void D3DRTWindow::CreateModel() {
     }
 
     {
-        const UINT modelIBSize = static_cast<UINT>(indices.size()) * sizeof(UINT);
+        const UINT modelIBSize = static_cast<UINT>(dragonMesh->GetIndices().size()) * sizeof(UINT);
 
-        m_modelIndexDefaultBuffer = CreateDefaultBuffer(indices.data(), modelIBSize, m_modelIndexUploadBuffer);
+        m_modelIndexDefaultBuffer = CreateDefaultBuffer(dragonMesh->GetIndices().data(), modelIBSize, m_modelIndexUploadBuffer);
 
         m_modelIndexBufferView.BufferLocation = m_modelIndexDefaultBuffer->GetGPUVirtualAddress();
         m_modelIndexBufferView.Format = DXGI_FORMAT_R32_UINT;
         m_modelIndexBufferView.SizeInBytes = modelIBSize;		
     }
 
-    m_modelIndexCount = static_cast<UINT>(indices.size());
-    m_modelVertexCount = static_cast<UINT>(vertices.size());
+    m_modelIndexCount = static_cast<UINT>(dragonMesh->GetIndices().size());
+    m_modelVertexCount = static_cast<UINT>(dragonMesh->GetVertices().size());*/
 
     // Create Texture
     int width, height, channels;
@@ -1857,7 +1864,7 @@ void D3DRTWindow::CreateModel() {
         m_textureUploadBuffer->SetName(L"Texture Upload buffer");
 
         // Set resource state from common to copy destination (default heap is the receive target)
-        m_commandList->ResourceBarrier(1,
+        g_commandList->ResourceBarrier(1,
             &CD3DX12_RESOURCE_BARRIER::Transition(m_textureBuffer.Get(),
                 D3D12_RESOURCE_STATE_COMMON,
                 D3D12_RESOURCE_STATE_COPY_DEST));
@@ -1869,10 +1876,10 @@ void D3DRTWindow::CreateModel() {
         textureData.SlicePitch = textureData.RowPitch * textureDesc.Height; // size of entire texture data
 
         // Now we copy the upload buffer contents to the default heap
-        UpdateSubresources(m_commandList.Get(), m_textureBuffer.Get(), m_textureUploadBuffer.Get(), 0, 0, 1, &textureData);
+        UpdateSubresources(g_commandList.Get(), m_textureBuffer.Get(), m_textureUploadBuffer.Get(), 0, 0, 1, &textureData);
 
         // Set resource state from copy destination to generic read (only shader can access to it)
-        m_commandList->ResourceBarrier(1,
+        g_commandList->ResourceBarrier(1,
             &CD3DX12_RESOURCE_BARRIER::Transition(m_textureBuffer.Get(),
                 D3D12_RESOURCE_STATE_COPY_DEST,
                 D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));

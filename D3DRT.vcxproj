@@ -111,7 +111,7 @@
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>false</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <AdditionalIncludeDirectories>$(ProjectDir);imgui\backends;imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);imgui\backends;imgui;Source;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -140,8 +140,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Source\Meshes\MeshResource.cpp" />
+    <ClCompile Include="Source\Materials\Material.cpp" />
     <ClCompile Include="Source\ImGuiSample.cpp" />
-    <ClCompile Include="Source\Model.cpp" />
+    <ClCompile Include="Source\Meshes\Mesh.cpp" />
     <ClCompile Include="Source\ModelLoader.cpp" />
     <ClCompile Include="Source\GraphicsCore.cpp" />
     <ClCompile Include="Source\RootSignature.cpp" />
@@ -159,8 +161,10 @@
     <ClCompile Include="Source\Win32Application.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Source\Meshes\MeshResource.h" />
+    <ClInclude Include="Source\Materials\Material.h" />
     <ClInclude Include="Source\ImGuiSample.h" />
-    <ClInclude Include="Source\Model.h" />
+    <ClInclude Include="Source\Meshes\Mesh.h" />
     <ClInclude Include="Source\ModelLoader.h" />
     <ClInclude Include="Source\GraphicsCore.h" />
     <ClInclude Include="Source\Hash.h" />

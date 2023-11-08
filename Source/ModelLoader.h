@@ -2,7 +2,7 @@
 
 #include <vector>
 #include "DXAPI/stdafx.h"
-#include "Model.h"
+#include "Meshes/Mesh.h"
 
 using Microsoft::WRL::ComPtr;
 
@@ -12,5 +12,7 @@ class ModelLoader
 {
 public:
 	static void LoadModel(const char* path, std::vector< Vertex >& vertices, std::vector< UINT >& indices);
+	static void CreatePlane(std::vector< Vertex >& vertices);
+	static void CreateTetrahedron(std::vector< Vertex >& vertices, std::vector< UINT >& indices);
 };
 
