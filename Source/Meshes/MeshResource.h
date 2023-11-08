@@ -26,9 +26,12 @@ public:
 	const std::string& GetName() const { return m_name; }
 	const D3D12_VERTEX_BUFFER_VIEW& GetVertexBufferView() const { return m_vertexBufferView; }
 	const D3D12_INDEX_BUFFER_VIEW& GetIndexBufferView() const { return m_indexBufferView; }
+	const ComPtr<ID3D12Resource>& GetVertexBuffer() const { return m_vertexBuffer; }
+	const ComPtr<ID3D12Resource>& GetIndexBuffer() const { return m_indexBuffer; }
 
 	const UINT GetVertexCount() const { return m_mesh->GetVertexCount(); }
 	const UINT GetIndexCount() const { return m_mesh->GetIndexCount(); }
+	const bool IsVerticeOnly() const { return m_mesh->IsVerticeOnly(); }
 
 	void UploadResource();
 

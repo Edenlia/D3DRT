@@ -113,27 +113,12 @@ private:
     ComPtr<ID3D12PipelineState> m_pipelineState;
     UINT m_rtvDescriptorSize;
 
-    // App resources.
-    ComPtr<ID3D12Resource> m_vertexUploadBuffer;
-    ComPtr<ID3D12Resource> m_vertexDefaultBuffer;
-    D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
-    ComPtr<ID3D12Resource> m_indexUploadBuffer;
-    ComPtr<ID3D12Resource> m_indexDefaultBuffer;
-    D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
-
-    ComPtr<ID3D12Resource> m_modelVertexUploadBuffer;
-    ComPtr<ID3D12Resource> m_modelVertexDefaultBuffer;
-    D3D12_VERTEX_BUFFER_VIEW m_modelVertexBufferView;
-    ComPtr<ID3D12Resource> m_modelIndexUploadBuffer;
-    ComPtr<ID3D12Resource> m_modelIndexDefaultBuffer;
-    D3D12_INDEX_BUFFER_VIEW m_modelIndexBufferView;
-
-    UINT m_modelVertexCount;
-    UINT m_modelIndexCount;
-
+    std::shared_ptr<MeshResource> m_triangleMeshResource;
+    std::shared_ptr<MeshResource> m_planeMeshResource;
+    std::shared_ptr<MeshResource> m_mengerMeshResource;
     std::shared_ptr<MeshResource> m_dragonMeshResource;
 
-    void CreateModel();
+    void ImportTexture();
 
     // #DXR
     ComPtr<IDxcBlob> m_rayGenLibrary;
@@ -156,19 +141,8 @@ private:
     uint32_t m_materialBufferSize = 0;
 
     // #DXR Extra: Per-Instance Data
-    ComPtr<ID3D12Resource> m_planeBuffer;
-    D3D12_VERTEX_BUFFER_VIEW m_planeBufferView;
     ComPtr<ID3D12Resource> m_globalConstantBuffer;
     std::vector<ComPtr<ID3D12Resource>> m_perInstanceConstantBuffers;
-
-    // #DXR Extra: Indexed Geometry
-    ComPtr<ID3D12Resource> m_mengerVB;
-    ComPtr<ID3D12Resource> m_mengerIB;
-    D3D12_VERTEX_BUFFER_VIEW m_mengerVBView;
-    D3D12_INDEX_BUFFER_VIEW m_mengerIBView;
-
-    UINT m_mengerIndexCount;
-    UINT m_mengerVertexCount;
 
     // #DXR Extra: Depth Buffering
     ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
@@ -249,13 +223,11 @@ private:
     void InitImGui();
     void RenderImGui();
 
+    void LoadMeshes();
+
     // #DXR Extra: Per-Instance Data
-    void CreatePlaneVB();
     void CreateGlobalConstantBuffer();
     void CreatePerInstanceConstantBuffers();
-
-    // #DXR Extra: Indexed Geometry
-    void CreateMengerSpongeVB();
 
     // #DXR Extra: Depth Buffering
     void CreateDepthBuffer();

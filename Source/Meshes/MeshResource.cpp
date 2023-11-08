@@ -13,17 +13,16 @@ void MeshResource::UploadResource()
         m_vertexBufferView.SizeInBytes = modelVBSize;
     }
 
-    {
-		const UINT modelIBSize = static_cast<UINT>(m_mesh->GetIndexCount()) * sizeof(UINT);
+    
+    if (!m_mesh->IsVerticeOnly()) { // If the mesh is vertice only, then it doesn't have index buffer
+        const UINT modelIBSize = static_cast<UINT>(m_mesh->GetIndexCount()) * sizeof(UINT);
 
-		m_indexBuffer = CreateDefaultBuffer(m_mesh->GetIndices().data(), modelIBSize, m_indexUploadBuffer);
+        m_indexBuffer = CreateDefaultBuffer(m_mesh->GetIndices().data(), modelIBSize, m_indexUploadBuffer);
 
-		m_indexBufferView.BufferLocation = m_indexBuffer->GetGPUVirtualAddress();
-		m_indexBufferView.Format = DXGI_FORMAT_R32_UINT;
-		m_indexBufferView.SizeInBytes = modelIBSize;
-	}
-
-
+        m_indexBufferView.BufferLocation = m_indexBuffer->GetGPUVirtualAddress();
+        m_indexBufferView.Format = DXGI_FORMAT_R32_UINT;
+        m_indexBufferView.SizeInBytes = modelIBSize;
+    }
 
     m_uploaded = true;
 }
