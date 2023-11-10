@@ -52,6 +52,7 @@
     <ClCompile Include="Source\ImGuiSample.cpp" />
     <ClCompile Include="Source\Materials\Material.cpp" />
     <ClCompile Include="Source\Meshes\MeshResource.cpp" />
+    <ClCompile Include="Source\Render\Renderer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\DXAPI\d3dx12.h" />
@@ -106,25 +107,26 @@
     <ClInclude Include="Source\ImGuiSample.h" />
     <ClInclude Include="Source\Materials\Material.h" />
     <ClInclude Include="Source\Meshes\MeshResource.h" />
+    <ClInclude Include="Source\Render\Renderer.h" />
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="Shaders\ShadowRay.hlsl" />
-    <CustomBuild Include="Shaders\RastShaders.hlsl">
+    <CustomBuild Include="Shaders\Raytracing\ShadowRay.hlsl" />
+    <CustomBuild Include="Shaders\Raytracing\Common.hlsl">
       <Filter>Assets\Shaders</Filter>
     </CustomBuild>
-    <CustomBuild Include="Shaders\Common.hlsl">
+    <CustomBuild Include="Shaders\Raytracing\Hit.hlsl">
       <Filter>Assets\Shaders</Filter>
     </CustomBuild>
-    <CustomBuild Include="Shaders\Hit.hlsl">
+    <CustomBuild Include="Shaders\Raytracing\Miss.hlsl">
       <Filter>Assets\Shaders</Filter>
     </CustomBuild>
-    <CustomBuild Include="Shaders\Miss.hlsl">
+    <CustomBuild Include="Shaders\Raytracing\RayGen.hlsl">
       <Filter>Assets\Shaders</Filter>
     </CustomBuild>
-    <CustomBuild Include="Shaders\RayGen.hlsl">
-      <Filter>Assets\Shaders</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Shaders\Procedual.hlsl" />
+    <CustomBuild Include="Shaders\Raytracing\Procedual.hlsl" />
+    <CustomBuild Include="Shaders\Rasteration\Base.hlsl" />
+    <CustomBuild Include="Shaders\Rasteration\BlinnPhong.hlsl" />
+    <CustomBuild Include="Shaders\Rasteration\DisneyPrinciple.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <CopyFileToFolders Include="External\dxcompiler.dll">

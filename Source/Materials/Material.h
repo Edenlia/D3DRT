@@ -25,25 +25,23 @@ protected:
 class BaseMaterial : public IMaterial
 {
 public:
-	BaseMaterial(XMFLOAT4 baseColor) : m_baseColor(baseColor) {
+	BaseMaterial() {
 		m_type = MaterialType::Base;
 	}
 	~BaseMaterial() {}
 
 public:
-	XMFLOAT4 m_baseColor;
 };
 
 class PhongMaterial : public IMaterial
 {
 public:
-	PhongMaterial(XMFLOAT4 baseColor) : m_baseColor(baseColor), ka(0.f), kd(0.f), ks(0.f) {
+	PhongMaterial() : ka(0.f), kd(0.f), ks(0.f) {
 		m_type = MaterialType::Phong;
 	}
 	~PhongMaterial() {}
 
 public:
-	XMFLOAT4 m_baseColor;
 	float ka;
 	float kd;
 	float ks;

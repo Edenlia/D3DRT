@@ -36,7 +36,7 @@ void ModelLoader::LoadModel(const char* path, std::vector<Vertex>& vertices, std
 			aiVector3D tangent = aMesh->mTangents[j];
 			aiVector3D bitangent = aMesh->mBitangents[j];
 
-			XMFLOAT4 p = XMFLOAT4(vertex.x * 0.008f, vertex.y * 0.008f, vertex.z * 0.008f, 1.0f);
+			XMFLOAT4 p = XMFLOAT4(vertex.x, vertex.y, vertex.z, 1.0f);
 			XMFLOAT4 c = colors[j % 3];
 			XMFLOAT3 n = XMFLOAT3(normal.x, normal.y, normal.z);
 			XMFLOAT2 u = XMFLOAT2(uv.x, uv.y);
@@ -65,7 +65,6 @@ void ModelLoader::CreatePlane(std::vector<Vertex>& vertices)
 	vertices.push_back({ {010.f, -1.3f, 010.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f} }); // 2
 	vertices.push_back({ {-00.f, -1.3f, -00.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f} }); // 1
 	vertices.push_back({ {010.f, -1.3f, -00.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f} }); // 4
-
 }
 
 void ModelLoader::CreateTetrahedron(std::vector<Vertex>& vertices, std::vector<UINT>& indices)

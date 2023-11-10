@@ -1,30 +1,6 @@
-//*********************************************************
-//
-// Copyright (c) Microsoft. All rights reserved.
-// This code is licensed under the MIT License (MIT).
-// THIS CODE IS PROVIDED *AS IS* WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING ANY
-// IMPLIED WARRANTIES OF FITNESS FOR A PARTICULAR
-// PURPOSE, MERCHANTABILITY, OR NON-INFRINGEMENT.
-//
-//*********************************************************
-
 #define PI 3.141592653589793
 #define INV_PI 0.3183098861837907
 
-//static float3 baseColor = float3(0.82, 0.67, 0.16); 
-//static float metallic = 0.3; // 0 1 0
-//static float subsurface = 1.0; // 0 1 0
-//static float specular = 1.0; // 0 1 0.5
-//static float roughness = 0.9; // 0 1 0.5
-//static float specularTint = 0.0; // 0 1 0
-//static float anisotropic = 0.0; // 0 1 0
-//static float sheen = 1.0; // 0 1 0
-//static float sheenTint = 0.5; // 0 1 0.5
-//static float clearcoat = 0.0; // 0 1 0
-//static float clearcoatGloss = 0.0; // 0 1 0
-
-// #DXR Extra: Perspective Camera
 cbuffer CameraParams : register(b0)
 {
     float4x4 view;
@@ -33,7 +9,12 @@ cbuffer CameraParams : register(b0)
     float4x4 projectionInv;
 }
 
-cbuffer DisneyMaterialParams : register(b1)
+cbuffer WorldMatrix : register(b1)
+{
+    float4x4 world;
+}
+
+cbuffer DisneyMaterialParams : register(b2)
 {
     float3 baseColor;
     float metallic;
@@ -47,19 +28,6 @@ cbuffer DisneyMaterialParams : register(b1)
     float clearcoat;
     float clearcoatGloss;
 }
-
-Texture2D t1 : register(t0);
-SamplerState s1 : register(s0);
-
-struct BPPayload
-{
-    float4 worldPosition;
-    float3 worldNormal;
-    float3 cameraWorldPosition;
-    float4 ndcPosition;
-    float4 ndcNormal;
-    float4 albedo;
-};
 
 struct VSInput
 {
@@ -83,36 +51,6 @@ struct PSInput
     float3 tangent : TANGENT;
     float3 bitangent : BITANGENT;
 };
-
-float4 BlinnPhong(BPPayload payload)
-{
-    float3 lightPos = float3(3.0, 0.0, 3.0);
-    float3 lightIntensity = float3(20.0, 20.0, 20.0);
-    
-    float3 ka = float3(0.001, 0.001, 0.001);
-    float3 kd = payload.albedo;
-    float3 ks = float3(0.7937, 0.7937, 0.7937);
-    
-    float p = 100.0;
-    
-    float I = lightIntensity;
-    float r2 = dot(lightPos - payload.worldPosition.xyz, lightPos - payload.worldPosition.xyz);
-    float3 wi = normalize(lightPos - payload.worldPosition.xyz);
-    float3 n = normalize(payload.worldNormal);
-    float3 wo = normalize(payload.cameraWorldPosition - payload.worldPosition.xyz);
-    float3 h = normalize(wi + wo);
-    float3 Ld = float3(0.0, 0.0, 0.0);
-    float3 Ls = float3(0.0, 0.0, 0.0);
-    float3 La = float3(0.0, 0.0, 0.0);
-    Ld = kd * I * max(0.0, dot(n, wi)) / r2;
-    Ls = ks * I * pow(max(0.0, dot(n, h)), p) / r2;
-    La = ka * I;
-    
-    float3 color = Ld + Ls + La;
-    
-    return float4(color, 1.0);
-}
-
 
 float sqr(float x)
 {
@@ -225,18 +163,23 @@ PSInput VSMain(VSInput input)
 {
     PSInput result;
     
-    result.worldPosition = input.position;
+    float4 worldPos = input.position;
+    float4 worldNormal = float4(input.normal, 1.0);
+    worldPos = mul(world, worldPos);
+    worldNormal = mul(world, worldNormal);
+    
+    result.worldPosition = worldPos;
     result.worldNormal = input.normal;
     
-    float4 ndcPos = input.position;
-    float4 ndcNormal = float4(input.normal, 1.0);
+    float4 ndcPos = result.worldPosition;
+    float4 ndcNormal = float4(result.worldNormal, 1.0);
     ndcPos = mul(view, ndcPos);
     ndcPos = mul(projection, ndcPos);
     ndcNormal = mul(view, ndcNormal);
     ndcNormal = mul(projection, ndcNormal);
     
     result.ndcPosition = ndcPos;
-    result.ndcNormal = ndcNormal;
+    result.ndcNormal = normalize(ndcNormal);
     result.uv = input.uv;
     result.color = input.color;
     result.cameraWorldPosition = float3(viewInv[0][3], viewInv[1][3], viewInv[2][3]);
@@ -247,30 +190,10 @@ PSInput VSMain(VSInput input)
 }
 
 float4 PSMain(PSInput input) : SV_TARGET
-{    
-    float4 albedo;
-    
-    if (input.uv.x == 0 && input.uv.y == 0) // Other objects
-    {
-        albedo = input.color;
-    }
-    else
-    {
-        albedo = t1.Sample(s1, input.uv);
-    }
-    
-    float3 lightPos = float3(3.0, 0.0, 3.0);
+{
+    float3 lightPos = float3(1.0, 0.0, 1.0);
     float3 lightIntensity = float3(15.0, 15.0, 15.0);
-    
-    //BPPayload payload;
-    //payload.worldPosition = input.worldPosition;
-    //payload.worldNormal = input.worldNormal;
-    //payload.cameraWorldPosition = input.cameraWorldPosition;
-    //payload.ndcPosition = input.ndcPosition;
-    //payload.ndcNormal = input.ndcNormal;
-    //payload.albedo = albedo;
-            
-    //return BlinnPhong(payload);
+    float r2 = dot(lightPos - input.worldPosition.xyz, lightPos - input.worldPosition.xyz);
     
     float3 n = normalize(input.worldNormal);
     float3 wo = normalize(input.cameraWorldPosition - input.worldPosition.xyz);
@@ -280,7 +203,8 @@ float4 PSMain(PSInput input) : SV_TARGET
     
     float3 brdf = Disney_BRDF(wi, wo, n, x, y);
     
-    float3 color = brdf * lightIntensity * max(0, dot(n, wi));
+    float3 color = brdf * lightIntensity * max(0, dot(n, wi)) / r2;
+    // float3 color = brdf * max(0, dot(n, wi));
     
     // Gamma correction
     // color = pow(color, 1.0 / 2.2);

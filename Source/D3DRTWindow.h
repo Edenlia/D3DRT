@@ -25,6 +25,9 @@
 #include "imgui.h"
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx12.h"
+#include "RootSignature.h"
+#include "PipelineState.h"
+#include "Render/Renderer.h"
 
 using namespace DirectX;
 
@@ -86,11 +89,6 @@ public:
     void OnButtonDown(UINT32 lParam);
     void OnMouseMove(UINT8 wParam, UINT32 lParam);
 
-    ComPtr<ID3D12Resource> CreateDefaultBuffer(
-		const void* const initData,
-		const UINT64 byteSize,
-		ComPtr<ID3D12Resource>& uploadBuffer);
-
 private:
     // #DXR
     struct AccelerationStructureBuffers
@@ -108,15 +106,15 @@ private:
     CD3DX12_RECT m_scissorRect;
     ComPtr<IDXGISwapChain3> m_swapChain;
     ComPtr<ID3D12Resource> m_renderTargets[FrameCount];
-    ComPtr<ID3D12RootSignature> m_rootSignature;
     ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
-    ComPtr<ID3D12PipelineState> m_pipelineState;
     UINT m_rtvDescriptorSize;
-
+    
     std::shared_ptr<MeshResource> m_triangleMeshResource;
     std::shared_ptr<MeshResource> m_planeMeshResource;
     std::shared_ptr<MeshResource> m_mengerMeshResource;
     std::shared_ptr<MeshResource> m_dragonMeshResource;
+
+    std::shared_ptr<IRenderer> m_renderer;
 
     void ImportTexture();
 

@@ -24,7 +24,24 @@ void MeshResource::UploadResource()
         m_indexBufferView.SizeInBytes = modelIBSize;
     }
 
+    {
+        const UINT modelCBSize = sizeof(XMMATRIX);
+        CreateUploadBuffer(&m_worldMatrix, modelCBSize, m_worldMatrixBuffer);
+    }
+
     m_uploaded = true;
+}
+
+void MeshResource::UpdateWorldBuffer()
+{
+    // Copy the matrix contents
+
+    const UINT modelCBSize = sizeof(XMMATRIX);
+
+    uint8_t* pData;
+    ThrowIfFailed(m_worldMatrixBuffer->Map(0, nullptr, (void**)&pData));
+    memcpy(pData, &m_worldMatrix, modelCBSize);
+    m_worldMatrixBuffer->Unmap(0, nullptr);
 }
 
 ComPtr<ID3D12Resource> MeshResource::CreateDefaultBuffer(const void* const initData, const UINT64 byteSize, ComPtr<ID3D12Resource>& uploadBuffer)
@@ -70,3 +87,23 @@ ComPtr<ID3D12Resource> MeshResource::CreateDefaultBuffer(const void* const initD
 
     return defaultBuffer;
 }
+
+void MeshResource::CreateUploadBuffer(const void* const initData, const UINT64 byteSize, ComPtr<ID3D12Resource>& buffer)
+{
+    // Create upload heap, write cpu memory data and send it to defalut heap
+    ThrowIfFailed(g_device->CreateCommittedResource(
+        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+        D3D12_HEAP_FLAG_NONE,
+        &CD3DX12_RESOURCE_DESC::Buffer(byteSize),
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        nullptr,
+        IID_PPV_ARGS(&buffer)));
+
+    // Copy the matrix contents
+    uint8_t* pData;
+    ThrowIfFailed(m_worldMatrixBuffer->Map(0, nullptr, (void**)&pData));
+    memcpy(pData, initData, byteSize);
+    buffer->Unmap(0, nullptr);
+}
+
+

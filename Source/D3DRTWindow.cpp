@@ -208,115 +208,15 @@ void D3DRTWindow::LoadPipeline()
 // Load the sample assets.
 void D3DRTWindow::LoadAssets()
 {
-    
-
-    // #DXR Extra: Perspective Camera
-    // The root signature describes which data is accessed by the shader. The camera matrices are held
-    // in a constant buffer, itself referenced the heap. To do this we reference a range in the heap,
-    // and use that range as the sole parameter of the shader. The camera buffer is associated in the
-    // index 0, making it accessible in the shader in the b0 register.
-    {
-        
-        // Use descriptor range to create rootParameters
-        CD3DX12_ROOT_PARAMETER rootParameters[3];
-        rootParameters[0].InitAsConstantBufferView(0 /*b0*/, 0, D3D12_SHADER_VISIBILITY_ALL);
-
-        // Init descriptor range
-        CD3DX12_DESCRIPTOR_RANGE srvRange; // for texture and imgui
-        srvRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0 /*t0*/);
-        rootParameters[1].InitAsDescriptorTable(1, &srvRange, D3D12_SHADER_VISIBILITY_PIXEL);
-
-        rootParameters[2].InitAsConstantBufferView(1 /*b1*/, 0, D3D12_SHADER_VISIBILITY_ALL);
-
-        // create a static sampler
-        D3D12_STATIC_SAMPLER_DESC sampler = {};
-        sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
-        sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-        sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-        sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-        sampler.MipLODBias = 0;
-        sampler.MaxAnisotropy = 0;
-        sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-        sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
-        sampler.MinLOD = 0.0f;
-        sampler.MaxLOD = D3D12_FLOAT32_MAX;
-        sampler.ShaderRegister = 0; // s0
-        sampler.RegisterSpace = 0;
-        sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-
-        CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
-        rootSignatureDesc.Init(_countof(rootParameters), rootParameters, 1, &sampler,
-            			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-
-        ComPtr<ID3DBlob> signature;
-        ComPtr<ID3DBlob> error;
-        ThrowIfFailed(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
-        ThrowIfFailed(g_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)));
-    }
-
-    // Create the pipeline state, which includes compiling and loading shaders.
-    {
-        ComPtr<ID3DBlob> vertexShader;
-        ComPtr<ID3DBlob> pixelShader;
-
-#if defined(_DEBUG)
-        // Enable better shader debugging with the graphics debugging tools.
-        UINT compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-#else
-        UINT compileFlags = 0;
-#endif
-
-        ID3DBlob* vsErrorBlob = nullptr;
-        ID3DBlob* psErrorBlob = nullptr;
-
-        HRESULT hr1 = D3DCompileFromFile(GetAssetFullPath(L"RastShaders.hlsl").c_str(), nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, &vsErrorBlob);
-        HRESULT hr2 = D3DCompileFromFile(GetAssetFullPath(L"RastShaders.hlsl").c_str(), nullptr, nullptr, "PSMain", "ps_5_0", compileFlags, 0, &pixelShader, &psErrorBlob);
-
-        if (vsErrorBlob) {
-            OutputDebugStringA((char*)vsErrorBlob->GetBufferPointer());
-        }
-        if (psErrorBlob) {
-			OutputDebugStringA((char*)psErrorBlob->GetBufferPointer());
-		}
-
-        // Define the vertex input layout.
-        D3D12_INPUT_ELEMENT_DESC inputElementDescs[] =
-        {
-            { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-            { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-            { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 28, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-            { "UV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 40, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-            { "TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 48, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "BITANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 60, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
-        };
-
-        // Describe and create the graphics pipeline state object (PSO).
-        D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-        psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
-        psoDesc.pRootSignature = m_rootSignature.Get();
-        psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.Get());
-        psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.Get());
-        psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-        psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-        // #DXR Extra: Depth Buffering
-        // Add support for depth testing, using a 32-bit floating-point depth buffer
-        psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-        psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
-        psoDesc.SampleMask = UINT_MAX;
-        psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-        psoDesc.NumRenderTargets = 1;
-        psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-        psoDesc.SampleDesc.Count = 1;
-        
-        ThrowIfFailed(g_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
-    }
+    m_renderer = std::make_shared<GraphicsRenderer>();
+    m_renderer->Initialize();
 
     {
         CreateRasterizerDescriptorHeap();
     }
 
     // Create the command list.
-    ThrowIfFailed(g_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_commandAllocator.Get(), m_pipelineState.Get(), IID_PPV_ARGS(&g_commandList)));
+    ThrowIfFailed(g_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_commandAllocator.Get(), nullptr, IID_PPV_ARGS(&g_commandList)));
 
     // Load all meshes, triangle, plane, menger, dragon
     LoadMeshes();
@@ -419,50 +319,6 @@ void D3DRTWindow::OnMouseMove(UINT8 wParam, UINT32 lParam)
     CameraManip.mouseMove(-GET_X_LPARAM(lParam), -GET_Y_LPARAM(lParam), inputs);
 }
 
-ComPtr<ID3D12Resource> D3DRTWindow::CreateDefaultBuffer(const void* const initData, const UINT64 byteSize, ComPtr<ID3D12Resource>& uploadBuffer)
-{
-    // Create upload heap, write cpu memory data and send it to defalut heap
-    ThrowIfFailed(g_device->CreateCommittedResource(
-        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
-        D3D12_HEAP_FLAG_NONE,
-        &CD3DX12_RESOURCE_DESC::Buffer(byteSize),
-        D3D12_RESOURCE_STATE_GENERIC_READ,
-        nullptr,
-        IID_PPV_ARGS(&uploadBuffer)));
-
-    ComPtr<ID3D12Resource> defaultBuffer;
-    // Create default heap, as upload heap's transmission target
-    ThrowIfFailed(g_device->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-        D3D12_HEAP_FLAG_NONE,
-        &CD3DX12_RESOURCE_DESC::Buffer(byteSize),
-        D3D12_RESOURCE_STATE_COMMON,// default heap is copy destination, so init as common state
-        nullptr,
-        IID_PPV_ARGS(&defaultBuffer)));
-
-    // Set resource state from common to copy destination (default heap is the receive target)
-    g_commandList->ResourceBarrier(1,
-        &CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer.Get(),
-            D3D12_RESOURCE_STATE_COMMON,
-            D3D12_RESOURCE_STATE_COPY_DEST));
-
-    // Copy data from cpu memory to default heap
-    D3D12_SUBRESOURCE_DATA subResourceData;
-    subResourceData.pData = initData;
-    subResourceData.RowPitch = byteSize;
-    subResourceData.SlicePitch = subResourceData.RowPitch;
-    // Core function UpdateSubresources: copy data from cpu memory to upload heap, then copy data from upload heap to default heap
-    // The sixth parameter is the max number of subresources to be copied  (Defined in template, means have 2 subresources).
-    UpdateSubresources<1>(g_commandList.Get(), defaultBuffer.Get(), uploadBuffer.Get(), 0, 0, 1, &subResourceData);
-
-    // Set resource state from copy destination to generic read (only shader can access to it)
-    g_commandList->ResourceBarrier(1,
-        &CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer.Get(),
-            D3D12_RESOURCE_STATE_COPY_DEST,
-            D3D12_RESOURCE_STATE_GENERIC_READ));
-
-    return defaultBuffer;
-}
-
 void D3DRTWindow::PopulateCommandList()
 {
     // Command list allocators can only be reset when the associated 
@@ -473,10 +329,10 @@ void D3DRTWindow::PopulateCommandList()
     // However, when ExecuteCommandList() is called on a particular command 
     // list, that command list can then be reset at any time and must be before 
     // re-recording.
-    ThrowIfFailed(g_commandList->Reset(g_commandAllocator.Get(), m_pipelineState.Get()));
+    ThrowIfFailed(g_commandList->Reset(g_commandAllocator.Get(), m_renderer->GetDefaultPSO()));
 
     // Set necessary state.
-    g_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
+    g_commandList->SetGraphicsRootSignature(m_renderer->GetRootSignature());
     g_commandList->RSSetViewports(1, &m_viewport);
     g_commandList->RSSetScissorRects(1, &m_scissorRect);
 
@@ -493,9 +349,16 @@ void D3DRTWindow::PopulateCommandList()
     // Record commands.
     // #DXR
     if (m_raster) {
+        // g_commandList->SetPipelineState(m_basePSO.GetPipelineStateObject());
+
         // set the constant buffer descriptor heap
-        g_commandList->SetGraphicsRootConstantBufferView(0 /*root sig param 0*/, m_cameraBuffer.Get()->GetGPUVirtualAddress());
-        g_commandList->SetGraphicsRootConstantBufferView(2 /*root sig param 2*/, m_materialBuffer.Get()->GetGPUVirtualAddress());
+        g_commandList->SetGraphicsRootConstantBufferView(0 /*root sig param 0*/, m_cameraBuffer.Get()->GetGPUVirtualAddress()); // camera buffer
+        g_commandList->SetGraphicsRootConstantBufferView(3 /*root sig param 3*/, m_materialBuffer.Get()->GetGPUVirtualAddress()); // Disney material params
+        // set the root descriptor table 1 to the texture descriptor heap
+        std::vector< ID3D12DescriptorHeap* > heaps = { m_rastSrvUavDescHeap.Get() };
+        g_commandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
+        g_commandList->SetGraphicsRootDescriptorTable(
+            1, m_rastSrvUavDescHeap->GetGPUDescriptorHandleForHeapStart());
 
         const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
         g_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
@@ -503,31 +366,9 @@ void D3DRTWindow::PopulateCommandList()
         // #DXR Extra: Depth Buffering
         g_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
-        // #DXR Extra: Per-Instance Data
-        // In a way similar to triangle rendering, rasterize the plane
-        g_commandList->IASetVertexBuffers(0, 1, &m_planeMeshResource->GetVertexBufferView());
-        g_commandList->DrawInstanced(6, 1, 0, 0);
-
-        // Indexed triangle rendering
-        //g_commandList->IASetVertexBuffers(0, 1, &m_triangleMeshResource->GetVertexBufferView());
-        //g_commandList->IASetIndexBuffer(&m_triangleMeshResource->GetIndexBufferView());
-        //g_commandList->DrawIndexedInstanced(12, 1, 0, 0, 0);
-
-        // #DXR Extra: Indexed Geometry
-        // In a way similar to triangle rendering, rasterize the Menger Sponge
-        /*g_commandList->IASetVertexBuffers(0, 1, &m_mengerMeshResource->GetVertexBufferView());
-        g_commandList->IASetIndexBuffer(&m_mengerMeshResource->GetIndexBufferView());
-        g_commandList->DrawIndexedInstanced(m_mengerMeshResource->GetIndexCount(), 1, 0, 0, 0);*/
-
-        // Draw model
-        // set the root descriptor table 1 to the texture descriptor heap
-        std::vector< ID3D12DescriptorHeap* > heaps = { m_rastSrvUavDescHeap.Get() };
-        g_commandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
-        g_commandList->SetGraphicsRootDescriptorTable(
-            1, m_rastSrvUavDescHeap->GetGPUDescriptorHandleForHeapStart());
-        g_commandList->IASetVertexBuffers(0, 1, &m_dragonMeshResource->GetVertexBufferView());
-        g_commandList->IASetIndexBuffer(&m_dragonMeshResource->GetIndexBufferView());
-        g_commandList->DrawIndexedInstanced(m_dragonMeshResource->GetIndexCount(), 1, 0, 0, 0);
+        m_renderer->Draw(m_planeMeshResource);
+        // m_renderer->Draw(m_mengerMeshResource);
+        m_renderer->Draw(m_dragonMeshResource);
 
         ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), g_commandList.Get());
 
@@ -940,7 +781,7 @@ void D3DRTWindow::CreateAccelerationStructures()
     // Once the command list is finished executing, reset it to be reused for
     // rendering
     ThrowIfFailed(
-        g_commandList->Reset(g_commandAllocator.Get(), m_pipelineState.Get()));
+        g_commandList->Reset(g_commandAllocator.Get(), m_renderer->GetDefaultPSO()));
 
     // Store the AS buffers. The rest of the buffers will be released once we exit
     // the function
@@ -1046,12 +887,12 @@ void D3DRTWindow::CreateRaytracingPipeline() {
     // set of DXIL libraries. We chose to separate the code in several libraries
     // by semantic (ray generation, hit, miss) for clarity. Any code layout can be
     // used.
-    m_rayGenLibrary = nv_helpers_dx12::CompileShaderLibrary(L"Shaders/RayGen.hlsl");
-    m_missLibrary = nv_helpers_dx12::CompileShaderLibrary(L"Shaders/Miss.hlsl");
-    m_hitLibrary = nv_helpers_dx12::CompileShaderLibrary(L"Shaders/Hit.hlsl");
+    m_rayGenLibrary = nv_helpers_dx12::CompileShaderLibrary(L"Shaders/Raytracing/RayGen.hlsl");
+    m_missLibrary = nv_helpers_dx12::CompileShaderLibrary(L"Shaders/Raytracing/Miss.hlsl");
+    m_hitLibrary = nv_helpers_dx12::CompileShaderLibrary(L"Shaders/Raytracing/Hit.hlsl");
     // #DXR Extra - Another ray type
-    m_shadowLibrary = nv_helpers_dx12::CompileShaderLibrary(L"Shaders/ShadowRay.hlsl");
-    m_procedualGeometryLibrary = nv_helpers_dx12::CompileShaderLibrary(L"Shaders/Procedual.hlsl");
+    m_shadowLibrary = nv_helpers_dx12::CompileShaderLibrary(L"Shaders/Raytracing/ShadowRay.hlsl");
+    m_procedualGeometryLibrary = nv_helpers_dx12::CompileShaderLibrary(L"Shaders/Raytracing/Procedual.hlsl");
 
 
     // In a way similar to DLLs, each library is associated with a number of
@@ -1409,9 +1250,10 @@ void D3DRTWindow::LoadMeshes()
     // Load the dragon model
     ModelLoader::LoadModel("Models/stanford-dragon-pbr/model.dae", vertices, indices);
     std::shared_ptr<Mesh> dragonMesh = std::make_shared<Mesh>(vertices, indices);
-    m_dragonMeshResource = std::make_shared<MeshResource>(dragonMesh, "dragon");
+    XMMATRIX dragonTransform = XMMatrixScaling(0.008f, 0.008f, 0.008f) * XMMatrixTranslation(1, 0, 0);
+    std::shared_ptr<IMaterial> dragonMaterial = std::make_shared<DisneyMaterial>();
+    m_dragonMeshResource = std::make_shared<MeshResource>(dragonMesh, "dragon", dragonMaterial, dragonTransform);
     m_dragonMeshResource->UploadResource();
-
 }
 
 //-----------------------------------------------------------------------------
