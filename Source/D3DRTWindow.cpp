@@ -369,6 +369,7 @@ void D3DRTWindow::PopulateCommandList()
         m_renderer->Draw(m_planeMeshResource);
         // m_renderer->Draw(m_mengerMeshResource);
         m_renderer->Draw(m_dragonMeshResource);
+        m_renderer->Draw(m_armadilloMeshResource);
 
         ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), g_commandList.Get());
 
@@ -1251,9 +1252,21 @@ void D3DRTWindow::LoadMeshes()
     ModelLoader::LoadModel("Models/stanford-dragon-pbr/model.dae", vertices, indices);
     std::shared_ptr<Mesh> dragonMesh = std::make_shared<Mesh>(vertices, indices);
     XMMATRIX dragonTransform = XMMatrixScaling(0.008f, 0.008f, 0.008f) * XMMatrixTranslation(1, 0, 0);
-    std::shared_ptr<IMaterial> dragonMaterial = std::make_shared<DisneyMaterial>();
+    std::shared_ptr<IMaterial> dragonMaterial = std::make_shared<PhongMaterial>();
     m_dragonMeshResource = std::make_shared<MeshResource>(dragonMesh, "dragon", dragonMaterial, dragonTransform);
     m_dragonMeshResource->UploadResource();
+
+    vertices.clear();
+    indices.clear();
+
+    // Load the armadillo model
+    ModelLoader::LoadModel("Models/stanford-armadillo-pbr/model.dae", vertices, indices);
+    std::shared_ptr<Mesh> armadilloMesh = std::make_shared<Mesh>(vertices, indices);
+    XMMATRIX armadilloTransform = XMMatrixScaling(0.008f, 0.008f, 0.008f) * XMMatrixTranslation(0, 0, 0);
+    std::shared_ptr<IMaterial> armadilloMaterial = std::make_shared<DisneyMaterial>();
+    m_armadilloMeshResource = std::make_shared<MeshResource>(armadilloMesh, "armadillo", armadilloMaterial, armadilloTransform);
+    m_armadilloMeshResource->UploadResource();
+
 }
 
 //-----------------------------------------------------------------------------

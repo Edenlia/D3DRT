@@ -113,6 +113,7 @@ private:
     std::shared_ptr<MeshResource> m_planeMeshResource;
     std::shared_ptr<MeshResource> m_mengerMeshResource;
     std::shared_ptr<MeshResource> m_dragonMeshResource;
+    std::shared_ptr<MeshResource> m_armadilloMeshResource;
 
     std::shared_ptr<IRenderer> m_renderer;
 
