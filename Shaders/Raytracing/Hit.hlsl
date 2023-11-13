@@ -1,4 +1,5 @@
 #include "Common.hlsl"
+#include "../Utils/Sampling.hlsl"
 
 // #DXR Extra: Per-Instance Data
 cbuffer Colors : register(b0)
@@ -14,34 +15,86 @@ struct ShadowHitInfo
     bool isHit;
 };
 
-StructuredBuffer<int> vertices : register(t0);
+StructuredBuffer<Vertex> vertices : register(t0);
 StructuredBuffer<int> indices: register(t1);
 
 // #DXR Extra - Another ray type
 // Raytracing acceleration structure, accessed as a SRV
 RaytracingAccelerationStructure SceneBVH : register(t2);
 
+float3 HitAttribute(float3 attrib[3], float3 barycentrics)
+{
+    return attrib[0] * barycentrics.x + attrib[1] * barycentrics.y + attrib[2] * barycentrics.z;
+}
 
 [shader("closesthit")] 
 export void ClosestHit(inout HitInfo payload, Attributes attrib)
 {
-    float3 barycentrics =
-    float3(1.f - attrib.bary.x - attrib.bary.y, attrib.bary.x, attrib.bary.y);
-    float3 hitColor;
+    float3 barycentrics = float3(1.f - attrib.bary.x - attrib.bary.y, attrib.bary.x, attrib.bary.y);
     
-    if (InstanceID() < 3)
+    uint baseIndex = PrimitiveIndex() * 3;
+    
+    if (payload.depth < 4)
     {
-        hitColor = A * barycentrics.x + B * barycentrics.y + C * barycentrics.z;
+        float3 vertexNormals[3] =
+        {
+            vertices[indices[baseIndex]].normal,
+            vertices[indices[baseIndex + 1]].normal,
+            vertices[indices[baseIndex + 2]].normal
+        };
+    
+    
+        float3 hitNormal = HitAttribute(vertexNormals, barycentrics);
+        
+        uint sampleCount = 2;
+        float2 seed = float2(attrib.bary.x + ObjectRayDirection().x, attrib.bary.y + ObjectRayDirection().y);
+        float2 seeds[4];
+        
+        seeds[0] = randomSeed(seed);
+        seeds[1] = randomSeed(seeds[0]);
+        seeds[2] = randomSeed(seeds[1]);
+        seeds[3] = randomSeed(seeds[2]);
+        
+        // Bounce the ray
+        float3 color = float3(0, 0, 0);
+        
+        for (uint i = 0; i < sampleCount; i++)
+        {
+            float2 seed = randomSeed(seed);
+            float3 bounceDir = hemisphereSample(hitNormal, seeds[i]);
+            bounceDir = normalize(bounceDir);
+    
+            RayDesc ray;
+            ray.Origin = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
+            ray.Direction = bounceDir;
+            ray.TMin = 0.01;
+            ray.TMax = 1000;
+    
+            HitInfo bouncePayload;
+            bouncePayload.depth = payload.depth + 1;
+    
+    
+            TraceRay(
+            SceneBVH,
+            RAY_FLAG_NONE,
+            0xFF,
+            0,
+            0,
+            0,
+            ray,
+            bouncePayload);
+            
+            color += bouncePayload.colorAndDistance.xyz * 0.5;
+        }
+        
+        color /= sampleCount;
+    
+        payload.colorAndDistance = float4(color, RayTCurrent());
     }
     else
     {
-        const float3 a = float3(1, 0, 0);
-        const float3 b = float3(0, 1, 0);
-        const float3 c = float3(0, 0, 1);
-        hitColor = a * barycentrics.x + b * barycentrics.y + c * barycentrics.z;
-    } 
-    
-    payload.colorAndDistance = float4(hitColor, RayTCurrent());
+        payload.colorAndDistance = float4(0, 0, 0, 0);
+    }
 }
 
 // #DXR Extra: Per-Instance Data

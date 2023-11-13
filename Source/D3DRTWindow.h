@@ -176,7 +176,7 @@ private:
     HANDLE m_fenceEvent;
     ComPtr<ID3D12Fence> m_fence;
     UINT64 m_fenceValue;
-    bool m_raster = true;
+    bool m_raster = false;
 
     // #DXR acceleration structure
     ComPtr<ID3D12Resource> m_bottomLevelAS; // Storage for the bottom Level AS
@@ -225,7 +225,6 @@ private:
     void LoadMeshes();
 
     // #DXR Extra: Per-Instance Data
-    void CreateGlobalConstantBuffer();
     void CreatePerInstanceConstantBuffers();
 
     // #DXR Extra: Depth Buffering

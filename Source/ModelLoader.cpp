@@ -59,12 +59,12 @@ void ModelLoader::LoadModel(const char* path, std::vector<Vertex>& vertices, std
 void ModelLoader::CreatePlane(std::vector<Vertex>& vertices)
 {
 	// Define the geometry for a plane.
-	vertices.push_back({ {-00.f, -1.3f, 010.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f} }); // 0
-	vertices.push_back({ {-00.f, -1.3f, -00.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f} }); // 1
+	vertices.push_back({ {-10.f, -1.3f, 010.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f} }); // 0
+	vertices.push_back({ {-10.f, -1.3f, -10.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f} }); // 1
 	vertices.push_back({ {010.f, -1.3f, 010.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f} }); // 2
 	vertices.push_back({ {010.f, -1.3f, 010.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f} }); // 2
-	vertices.push_back({ {-00.f, -1.3f, -00.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f} }); // 1
-	vertices.push_back({ {010.f, -1.3f, -00.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f} }); // 4
+	vertices.push_back({ {-10.f, -1.3f, -10.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f} }); // 1
+	vertices.push_back({ {010.f, -1.3f, -10.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f} }); // 4
 }
 
 void ModelLoader::CreateTetrahedron(std::vector<Vertex>& vertices, std::vector<UINT>& indices)

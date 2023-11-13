@@ -110,25 +110,6 @@
     <ClInclude Include="Source\Render\Renderer.h" />
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="Shaders\Raytracing\ShadowRay.hlsl" />
-    <CustomBuild Include="Shaders\Raytracing\Common.hlsl">
-      <Filter>Assets\Shaders</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Shaders\Raytracing\Hit.hlsl">
-      <Filter>Assets\Shaders</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Shaders\Raytracing\Miss.hlsl">
-      <Filter>Assets\Shaders</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Shaders\Raytracing\RayGen.hlsl">
-      <Filter>Assets\Shaders</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Shaders\Raytracing\Procedual.hlsl" />
-    <CustomBuild Include="Shaders\Rasteration\Base.hlsl" />
-    <CustomBuild Include="Shaders\Rasteration\BlinnPhong.hlsl" />
-    <CustomBuild Include="Shaders\Rasteration\DisneyPrinciple.hlsl" />
-  </ItemGroup>
-  <ItemGroup>
     <CopyFileToFolders Include="External\dxcompiler.dll">
       <Filter>External</Filter>
     </CopyFileToFolders>
@@ -147,5 +128,25 @@
     <CopyFileToFolders Include="External\zlibd1.dll">
       <Filter>External</Filter>
     </CopyFileToFolders>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="Shaders\Rasteration\Base.hlsl" />
+    <FxCompile Include="Shaders\Rasteration\BlinnPhong.hlsl" />
+    <FxCompile Include="Shaders\Rasteration\DisneyPrinciple.hlsl" />
+    <FxCompile Include="Shaders\Raytracing\Common.hlsl">
+      <Filter>Assets\Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\Raytracing\Hit.hlsl">
+      <Filter>Assets\Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\Raytracing\Miss.hlsl">
+      <Filter>Assets\Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\Raytracing\Procedual.hlsl" />
+    <FxCompile Include="Shaders\Raytracing\RayGen.hlsl">
+      <Filter>Assets\Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\Raytracing\ShadowRay.hlsl" />
+    <FxCompile Include="Shaders\Utils\Sampling.hlsl" />
   </ItemGroup>
 </Project>

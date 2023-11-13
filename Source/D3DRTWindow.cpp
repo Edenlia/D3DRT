@@ -641,8 +641,8 @@ void D3DRTWindow::CreateShaderBindingTable()
             L"HitGroup", 
             { 
                 (void*)(m_perInstanceConstantBuffers[i]->GetGPUVirtualAddress()),
-                (void*)(m_triangleMeshResource->GetVertexBuffer()->GetGPUVirtualAddress()),
-                (void*)(m_triangleMeshResource->GetIndexBuffer()->GetGPUVirtualAddress()) 
+                (void*)(m_dragonMeshResource->GetVertexBuffer()->GetGPUVirtualAddress()),
+                (void*)(m_dragonMeshResource->GetIndexBuffer()->GetGPUVirtualAddress())
             }
         );
         // #DXR Extra - Another ray type
@@ -741,7 +741,7 @@ void D3DRTWindow::CreateAccelerationStructures()
 {
     // Build the bottom AS from the Triangle vertex buffer
     AccelerationStructureBuffers bottomLevelBuffers =
-        CreateBottomLevelAS({ {m_triangleMeshResource->GetVertexBuffer().Get(), 4} }, {{m_triangleMeshResource->GetIndexBuffer().Get(), 12}});
+        CreateBottomLevelAS({ {m_dragonMeshResource->GetVertexBuffer().Get(), m_dragonMeshResource->GetVertexCount()}}, {{m_dragonMeshResource->GetIndexBuffer().Get(), m_dragonMeshResource->GetIndexCount()}});
 
     // #DXR Extra: Per-Instance Data
     AccelerationStructureBuffers planeBottomLevelBuffers =
@@ -755,17 +755,16 @@ void D3DRTWindow::CreateAccelerationStructures()
         CreateBottomLevelAS({ {m_mengerMeshResource->GetVertexBuffer().Get(), m_mengerMeshResource->GetVertexCount()}},
             { {m_mengerMeshResource->GetIndexBuffer().Get(), m_mengerMeshResource->GetIndexCount()}});
 
-    AccelerationStructureBuffers sphereBottomLevelBuffers = CreateAABBBottomLevelAS();
+    // AccelerationStructureBuffers sphereBottomLevelBuffers = CreateAABBBottomLevelAS();
 
     // Just one instance for now
     m_instances = 
     { 
-        {bottomLevelBuffers.pResult, XMMatrixIdentity()},
-        {bottomLevelBuffers.pResult, XMMatrixTranslation(-.6f, 0, 0)},
-        {bottomLevelBuffers.pResult, XMMatrixTranslation(.6f, 0, 0)},
+        {bottomLevelBuffers.pResult, XMMatrixScaling(0.008f, 0.008f, 0.008f) * XMMatrixIdentity()},
+        {bottomLevelBuffers.pResult, XMMatrixScaling(0.008f, 0.008f, 0.008f) * XMMatrixTranslation(-.6f, 0, 0)},
+        {bottomLevelBuffers.pResult, XMMatrixScaling(0.008f, 0.008f, 0.008f) * XMMatrixTranslation(.6f, 0, 0)},
         {planeBottomLevelBuffers.pResult, XMMatrixTranslation(0, 0, 0)},
         {mengerBottomLevelBuffers.pResult, XMMatrixIdentity() /*add merger sponge*/},
-        {sphereBottomLevelBuffers.pResult, XMMatrixIdentity()},
     };
     CreateTopLevelAS(m_instances);
 
@@ -962,7 +961,7 @@ void D3DRTWindow::CreateRaytracingPipeline() {
     // exchanged between shaders, such as the HitInfo structure in the HLSL code.
     // It is important to keep this value as low as possible as a too high value
     // would result in unnecessary memory consumption and cache trashing.
-    pipeline.SetMaxPayloadSize(4 * sizeof(float)); // RGB + distance
+    pipeline.SetMaxPayloadSize(7 * sizeof(float) + sizeof(UINT)); // RGB + distance + normal + depth
 
     // Upon hitting a surface, DXR can provide several attributes to the hit. In
     // our sample we just use the barycentric coordinates defined by the weights
@@ -976,7 +975,7 @@ void D3DRTWindow::CreateRaytracingPipeline() {
     // kept to a minimum for best performance. Path tracing algorithms can be
     // easily flattened into a simple loop in the ray generation.
     // #DXR Extra - Another ray type
-    pipeline.SetMaxRecursionDepth(2);
+    pipeline.SetMaxRecursionDepth(6);
 
     // Compile the pipeline for execution on the GPU
     try {
@@ -1267,42 +1266,6 @@ void D3DRTWindow::LoadMeshes()
     m_armadilloMeshResource = std::make_shared<MeshResource>(armadilloMesh, "armadillo", armadilloMaterial, armadilloTransform);
     m_armadilloMeshResource->UploadResource();
 
-}
-
-//-----------------------------------------------------------------------------
-//
-// #DXR Extra: Per-Instance Data
-void D3DRTWindow::CreateGlobalConstantBuffer()
-{
-    // Due to HLSL packing rules, we create the CB with 9 float4 (each needs to start on a 16-byte
-    // boundary)
-    XMVECTOR bufferData[] = {
-        // A
-        XMVECTOR{1.0f, 0.0f, 0.0f, 1.0f},
-        XMVECTOR{0.7f, 0.4f, 0.0f, 1.0f},
-        XMVECTOR{0.4f, 0.7f, 0.0f, 1.0f},
-
-        // B
-        XMVECTOR{0.0f, 1.0f, 0.0f, 1.0f},
-        XMVECTOR{0.0f, 0.7f, 0.4f, 1.0f},
-        XMVECTOR{0.0f, 0.4f, 0.7f, 1.0f},
-
-        // C
-        XMVECTOR{0.0f, 0.0f, 1.0f, 1.0f},
-        XMVECTOR{0.4f, 0.0f, 0.7f, 1.0f},
-        XMVECTOR{0.7f, 0.0f, 0.4f, 1.0f},
-    };
-
-    // Create our buffer
-    m_globalConstantBuffer = nv_helpers_dx12::CreateBuffer(
-        g_device.Get(), sizeof(bufferData), D3D12_RESOURCE_FLAG_NONE,
-        D3D12_RESOURCE_STATE_GENERIC_READ, nv_helpers_dx12::kUploadHeapProps);
-
-    // Copy CPU memory to GPU
-    uint8_t* pData;
-    ThrowIfFailed(m_globalConstantBuffer->Map(0, nullptr, (void**)&pData));
-    memcpy(pData, bufferData, sizeof(bufferData));
-    m_globalConstantBuffer->Unmap(0, nullptr);
 }
 
 void D3DRTWindow::CreatePerInstanceConstantBuffers()
