@@ -32,18 +32,33 @@ export void ClosestHit(inout HitInfo payload, Attributes attrib)
     
     uint baseIndex = PrimitiveIndex() * 3;
     
+    //uint indicesNum, indicesStride;
+    //indices.GetDimensions(indicesNum, indicesStride);
+    
+    //// No index buffer
+    //if (indicesNum == 0)
+    //{
+    //    baseIndex = PrimitiveIndex() * indices[3];
+    //}
+    
+    float3 vertexNormals[3] =
+    {
+        vertices[indices[baseIndex]].normal,
+        vertices[indices[baseIndex + 1]].normal,
+        vertices[indices[baseIndex + 2]].normal
+    };
+    float3 hitNormal = HitAttribute(vertexNormals, barycentrics);
+    
+    float3 vertexColors[3] =
+    {
+        vertices[indices[baseIndex]].color.xyz,
+        vertices[indices[baseIndex + 1]].color.xyz,
+        vertices[indices[baseIndex + 2]].color.xyz
+    };
+    float3 hitColor = HitAttribute(vertexColors, barycentrics);
+    
     if (payload.depth < 4)
     {
-        float3 vertexNormals[3] =
-        {
-            vertices[indices[baseIndex]].normal,
-            vertices[indices[baseIndex + 1]].normal,
-            vertices[indices[baseIndex + 2]].normal
-        };
-    
-    
-        float3 hitNormal = HitAttribute(vertexNormals, barycentrics);
-        
         uint sampleCount = 2;
         float2 seed = float2(attrib.bary.x + ObjectRayDirection().x, attrib.bary.y + ObjectRayDirection().y);
         seed *= frameCount + 1;

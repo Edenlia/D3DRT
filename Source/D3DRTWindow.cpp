@@ -658,11 +658,6 @@ void D3DRTWindow::CreateShaderBindingTable()
     // #DXR Extra - Another ray type
     m_sbtHelper.AddMissProgram(L"ShadowMiss", {});
 
-    // Adding the triangle hit shader
-    // #DXR Extra: Per-Instance Data
-    // We have 3 triangles, each of which needs to access its own constant buffer
-    // as a root parameter in its primary hit shader. The shadow hit only sets a
-    // boolean visibility in the payload, and does not require external data
     for (int i = 0; i < 3; ++i) {
         m_sbtHelper.AddHitGroup(
             L"HitGroup", 
@@ -678,7 +673,13 @@ void D3DRTWindow::CreateShaderBindingTable()
 
     // The plane also uses a constant buffer for its vertex colors
     // #DXR Extra - Another ray type
-    m_sbtHelper.AddHitGroup(L"PlaneHitGroup", { (void*)(m_rayTracingGlobalConstantBuffer->GetGPUVirtualAddress()), heapPointer });
+    m_sbtHelper.AddHitGroup(
+        L"HitGroup", 
+        { 
+            (void*)(m_rayTracingGlobalConstantBuffer->GetGPUVirtualAddress()), 
+            (void*)(m_planeMeshResource->GetVertexBuffer()->GetGPUVirtualAddress()),
+            heapPointer /*TODO: HitGroup input data is messed up*/
+        });
     m_sbtHelper.AddHitGroup(L"ShadowHitGroup", {});
 
     // menger sponge fractal
@@ -720,9 +721,11 @@ void D3DRTWindow::CreateTopLevelAS(const std::vector<std::pair<ComPtr<ID3D12Reso
 {
     // Gather all the instances into the builder helper
     for (size_t i = 0; i < instances.size(); i++) {
-        m_topLevelASGenerator.AddInstance(instances[i].first.Get(),
-            instances[i].second, static_cast<UINT>(i),
-            static_cast<UINT>(2*i));
+        m_topLevelASGenerator.AddInstance(
+            instances[i].first.Get(),
+            instances[i].second,
+            static_cast<UINT>(i),
+            static_cast<UINT>(2*i)); /*2 hit groups per instance*/
     }
 
     // As for the bottom-level AS, the building the AS requires some scratch space
@@ -901,12 +904,13 @@ void D3DRTWindow::CreateRaytracingPipeline() {
 
     m_rayGenSig.Finalize(L"RayGen", D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE);
 
-    m_hitSig.Reset(4);
+    m_hitSig.Reset(5);
     m_hitSig[0].InitAsConstantBuffer(0 /*b0*/);
     m_hitSig[1].InitAsBufferSRV(0 /*t0*/); // vertices
     m_hitSig[2].InitAsBufferSRV(1 /*t1*/); // indices
     m_hitSig[3].InitAsDescriptorTable(1);
     m_hitSig[3].SetTableRange(0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2 /*t2*/, 1, 0, 1 /*2nd slot of the heap*/); // t2, BVH
+    m_hitSig[4].InitAsConstantBuffer(1 /*b1*/); // b1, material buffer
     m_hitSig.Finalize(L"Hit", D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE);
 
     m_missSig.Reset(0);
@@ -1493,8 +1497,8 @@ void D3DRTWindow::ImportTexture() {
         D3D12_RESOURCE_DESC textureDesc = {};
         textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
         textureDesc.Alignment = 0;
-        textureDesc.Width = 1280;
-        textureDesc.Height = 720;
+        textureDesc.Width = width;
+        textureDesc.Height = height;
         textureDesc.DepthOrArraySize = 1;
         textureDesc.MipLevels = 1;
         textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
