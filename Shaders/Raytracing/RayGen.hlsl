@@ -7,6 +7,8 @@ RWTexture2D< float4 > gOutput : register(u0);
 // Raytracing acceleration structure, accessed as a SRV
 RaytracingAccelerationStructure SceneBVH : register(t0);
 
+Texture2D frameTexture : register(t1);
+
 // #DXR Extra: Perspective Camera
 cbuffer CameraParams : register(b0)
 {
@@ -14,6 +16,11 @@ cbuffer CameraParams : register(b0)
     float4x4 projection;
     float4x4 viewI;
     float4x4 projectionI;
+}
+
+cbuffer GlobalParams : register(b1)
+{
+    uint frameCount;
 }
 
 [shader("raygeneration")] 
@@ -31,7 +38,9 @@ export void RayGen() {
 
     float aspectRatio = dims.x / dims.y;
     
-    float2 seed = (launchIndex.xy + 0.5f) / dims.xy;
+    float2 uv = (launchIndex.xy + 0.5f) / dims.xy;
+    
+    float2 seed = uv;
     
     float2 poissonDisk[NUM_SAMPLES];
     
@@ -105,5 +114,7 @@ export void RayGen() {
     
     color /= float(NUM_SAMPLES);
     
-    gOutput[launchIndex] = float4(color, 1.f);
+    float4 frameColor = frameTexture[launchIndex];
+    
+    gOutput[launchIndex] = (frameColor * float(frameCount) + float4(color, 1.f)) / float(frameCount + 1);
 }

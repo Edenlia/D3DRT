@@ -73,6 +73,10 @@ struct ImGuiParams {
     float clearcoatGloss;
 };
 
+struct RayTracingGlobalParams {
+    UINT frameCount;
+};
+
 
 class D3DRTWindow : public DXSample
 {
@@ -99,13 +103,13 @@ private:
         UINT64                 ResultDataMaxSizeInBytes = 0;
     };
 
-    static const UINT FrameCount = 2;
+    static const UINT FrameNum = 2;
 
     // Pipeline objects.
     CD3DX12_VIEWPORT m_viewport;
     CD3DX12_RECT m_scissorRect;
     ComPtr<IDXGISwapChain3> m_swapChain;
-    ComPtr<ID3D12Resource> m_renderTargets[FrameCount];
+    ComPtr<ID3D12Resource> m_renderTargets[FrameNum];
     ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
     UINT m_rtvDescriptorSize;
     
@@ -118,16 +122,21 @@ private:
     std::shared_ptr<IRenderer> m_renderer;
 
     void ImportTexture();
+    void CreateFrameResourcesBuffer();
+
+    UINT m_rayTracingFrameCount = 0;
 
     // #DXR
     ComPtr<IDxcBlob> m_rayGenLibrary;
     ComPtr<IDxcBlob> m_hitLibrary;
     ComPtr<IDxcBlob> m_missLibrary;
-    ComPtr<ID3D12RootSignature> m_rayGenSignature;
-    ComPtr<ID3D12RootSignature> m_hitSignature;
-    ComPtr<ID3D12RootSignature> m_missSignature;
     ComPtr<ID3D12Resource> m_outputResource;
     ComPtr<ID3D12DescriptorHeap> m_srvUavHeap;
+
+    RootSignature m_rayGenSig;
+    RootSignature m_hitSig;
+    RootSignature m_missSig;
+    RootSignature m_shadowSig;
 
     // #DXR Extra: Perspective Camera
     ComPtr< ID3D12Resource > m_cameraBuffer;
@@ -139,9 +148,10 @@ private:
     ComPtr< ID3D12DescriptorHeap > m_materialHeap;
     uint32_t m_materialBufferSize = 0;
 
-    // #DXR Extra: Per-Instance Data
-    ComPtr<ID3D12Resource> m_globalConstantBuffer;
-    std::vector<ComPtr<ID3D12Resource>> m_perInstanceConstantBuffers;
+    // Ray Tracing Global Constant Buffer
+    ComPtr< ID3D12Resource > m_rayTracingGlobalConstantBuffer;
+    ComPtr< ID3D12DescriptorHeap > m_rayTracingGlobalConstantHeap;
+    uint32_t m_rayTracingGlobalConstantBufferSize = 0;
 
     // #DXR Extra: Depth Buffering
     ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
@@ -149,7 +159,6 @@ private:
 
     // #DXR Extra - Another ray type
     ComPtr<IDxcBlob> m_shadowLibrary;
-    ComPtr<ID3D12RootSignature> m_shadowSignature;
 
     // Procedural Geometry
     ComPtr<ID3D12Resource> m_aabbBuffer;
@@ -166,6 +175,8 @@ private:
     ComPtr<ID3D12Resource> m_textureUploadBuffer;
     ComPtr<ID3D12Resource> m_textureBuffer;
     ComPtr<ID3D12DescriptorHeap> m_rastSrvUavDescHeap;
+
+    ComPtr<ID3D12Resource> m_frameBuffer;
 
     ImGuiIO* m_imGuiIO;
 
@@ -201,9 +212,6 @@ private:
     void CreateAccelerationStructures();
 
     // #DXR
-    ComPtr<ID3D12RootSignature> CreateRayGenSignature();
-    ComPtr<ID3D12RootSignature> CreateHitSignature();
-    ComPtr<ID3D12RootSignature> CreateMissSignature();
     void CreateRaytracingOutputBuffer();
     void CreateShaderResourceHeap();
     void CreateShaderBindingTable();
@@ -217,6 +225,11 @@ private:
     void CreateMaterialBuffer();
     void UpdateMaterialBuffer();
 
+    void CreateRayTracingGlobalConstantBuffer();
+    void UpdateRayTracingGlobalConstantBuffer();
+
+    void UpdateFrameBuffer();
+
     void CreateRasterizerDescriptorHeap();
 
     void InitImGui();
@@ -224,16 +237,13 @@ private:
 
     void LoadMeshes();
 
-    // #DXR Extra: Per-Instance Data
-    void CreatePerInstanceConstantBuffers();
-
     // #DXR Extra: Depth Buffering
     void CreateDepthBuffer();
 
     // Procedural Geometry
     void BuildProceduralGeometryAABBs();
     D3DRTWindow::AccelerationStructureBuffers D3DRTWindow::CreateAABBBottomLevelAS();
-    ComPtr<ID3D12RootSignature> D3DRTWindow::CreateProcedualGeometryHitSignature();
+    ComPtr<ID3D12RootSignature> CreateProcedualGeometryHitSignature();
 };
 
 #endif // !_D3DRT_WINDOWS_H_

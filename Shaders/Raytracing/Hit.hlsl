@@ -2,11 +2,9 @@
 #include "../Utils/Sampling.hlsl"
 
 // #DXR Extra: Per-Instance Data
-cbuffer Colors : register(b0)
+cbuffer GlobalParams : register(b0)
 {
-    float3 A;
-    float3 B;
-    float3 C;
+    uint frameCount;
 }
 
 // #DXR Extra - Another ray type
@@ -48,6 +46,7 @@ export void ClosestHit(inout HitInfo payload, Attributes attrib)
         
         uint sampleCount = 2;
         float2 seed = float2(attrib.bary.x + ObjectRayDirection().x, attrib.bary.y + ObjectRayDirection().y);
+        seed *= frameCount + 1;
         float2 seeds[4];
         
         seeds[0] = randomSeed(seed);
@@ -60,7 +59,6 @@ export void ClosestHit(inout HitInfo payload, Attributes attrib)
         
         for (uint i = 0; i < sampleCount; i++)
         {
-            float2 seed = randomSeed(seed);
             float3 bounceDir = hemisphereSample(hitNormal, seeds[i]);
             bounceDir = normalize(bounceDir);
     

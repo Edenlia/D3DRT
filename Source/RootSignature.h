@@ -72,14 +72,14 @@ public:
         m_RootParam.DescriptorTable.pDescriptorRanges = new D3D12_DESCRIPTOR_RANGE[RangeCount];
     }
 
-    void SetTableRange(UINT RangeIndex, D3D12_DESCRIPTOR_RANGE_TYPE Type, UINT Register, UINT Count, UINT Space = 0)
+    void SetTableRange(UINT RangeIndex, D3D12_DESCRIPTOR_RANGE_TYPE Type, UINT Register, UINT Count, UINT Space = 0, UINT Offset = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND)
     {
         D3D12_DESCRIPTOR_RANGE* range = const_cast<D3D12_DESCRIPTOR_RANGE*>(m_RootParam.DescriptorTable.pDescriptorRanges + RangeIndex);
         range->RangeType = Type;
         range->NumDescriptors = Count;
         range->BaseShaderRegister = Register;
         range->RegisterSpace = Space;
-        range->OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+        range->OffsetInDescriptorsFromTableStart = Offset;
     }
 
     const D3D12_ROOT_PARAMETER& operator() (void) const { return m_RootParam; }

@@ -64,9 +64,6 @@ void D3DRTWindow::OnInit()
     // triangle instance
     //CreateGlobalConstantBuffer();
 
-    // #DXR Extra: Per-Instance Data
-    CreatePerInstanceConstantBuffers();
-
     // Allocate the buffer storing the raytracing output, with the same dimensions
     // as the target image
     CreateRaytracingOutputBuffer(); // #DXR
@@ -74,8 +71,8 @@ void D3DRTWindow::OnInit()
     // #DXR Extra: Perspective Camera
     // Create a buffer to store the modelview and perspective camera matrices
     CreateCameraBuffer();
-
     CreateMaterialBuffer();
+    CreateRayTracingGlobalConstantBuffer();
 
     // Create the buffer containing the raytracing result (always output in a
     // UAV), and create the heap referencing the resources used by the raytracing,
@@ -153,7 +150,7 @@ void D3DRTWindow::LoadPipeline()
 
     // Describe and create the swap chain.
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
-    swapChainDesc.BufferCount = FrameCount;
+    swapChainDesc.BufferCount = FrameNum;
     swapChainDesc.Width = m_width;
     swapChainDesc.Height = m_height;
     swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -181,7 +178,7 @@ void D3DRTWindow::LoadPipeline()
     {
         // Describe and create a render target view (RTV) descriptor heap.
         D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
-        rtvHeapDesc.NumDescriptors = FrameCount;
+        rtvHeapDesc.NumDescriptors = FrameNum;
         rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
         rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         ThrowIfFailed(g_device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&m_rtvHeap)));
@@ -194,7 +191,7 @@ void D3DRTWindow::LoadPipeline()
         CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
 
         // Create a RTV for each frame.
-        for (UINT n = 0; n < FrameCount; n++)
+        for (UINT n = 0; n < FrameNum; n++)
         {
             ThrowIfFailed(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_renderTargets[n])));
             g_device->CreateRenderTargetView(m_renderTargets[n].Get(), nullptr, rtvHandle);
@@ -221,6 +218,7 @@ void D3DRTWindow::LoadAssets()
     // Load all meshes, triangle, plane, menger, dragon
     LoadMeshes();
     ImportTexture();
+    CreateFrameResourcesBuffer();
 
     BuildProceduralGeometryAABBs();
 
@@ -249,6 +247,7 @@ void D3DRTWindow::OnUpdate()
     // #DXR Extra: Perspective Camera
     UpdateCameraBuffer();
     UpdateMaterialBuffer();
+    UpdateRayTracingGlobalConstantBuffer();
 }
 
 // Render the scene.
@@ -290,17 +289,18 @@ void D3DRTWindow::OnKeyUp(UINT8 key)
 void D3DRTWindow::OnButtonDown(UINT32 lParam)
 {
     bool is_hovered_in_imgui = ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
-    if (is_hovered_in_imgui) {
+    if (m_raster && is_hovered_in_imgui) {
 		return;
 	}
 
     nv_helpers_dx12::CameraManip.setMousePosition(-GET_X_LPARAM(lParam), -GET_Y_LPARAM(lParam));
+    m_rayTracingFrameCount = 0; // reset accumulation
 }
 
 void D3DRTWindow::OnMouseMove(UINT8 wParam, UINT32 lParam)
 {
     bool is_hovered_in_imgui = ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
-    if (is_hovered_in_imgui) {
+    if (m_raster && is_hovered_in_imgui) {
         return;
     }
 
@@ -317,6 +317,8 @@ void D3DRTWindow::OnMouseMove(UINT8 wParam, UINT32 lParam)
     inputs.alt = GetAsyncKeyState(VK_MENU);
 
     CameraManip.mouseMove(-GET_X_LPARAM(lParam), -GET_Y_LPARAM(lParam), inputs);
+
+    m_rayTracingFrameCount = 0; // reset accumulation
 }
 
 void D3DRTWindow::PopulateCommandList()
@@ -444,10 +446,13 @@ void D3DRTWindow::PopulateCommandList()
         g_commandList->CopyResource(m_renderTargets[m_frameIndex].Get(),
             m_outputResource.Get());
 
+        UpdateFrameBuffer();
+
         transition = CD3DX12_RESOURCE_BARRIER::Transition(
             m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_COPY_DEST,
             D3D12_RESOURCE_STATE_RENDER_TARGET);
         g_commandList->ResourceBarrier(1, &transition);
+        m_rayTracingFrameCount++;
     }
     
 
@@ -552,9 +557,9 @@ void D3DRTWindow::CreateShaderResourceHeap()
 {
     // #DXR Extra: Perspective Camera
     // Create a SRV/UAV/CBV descriptor heap. We need 3 entries - 1 SRV for the TLAS, 1 UAV for the
-    // raytracing output and 1 CBV for the camera matrices
+    // raytracing output and 1 CBV for the camera matrices, 1 CBV for the frame count, 1 SRV for the frame texture
     m_srvUavHeap = nv_helpers_dx12::CreateDescriptorHeap(
-        g_device.Get(), 3, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+        g_device.Get(), 5, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 
     // Get a handle to the heap memory on the CPU side, to be able to write the
     // descriptors directly
@@ -593,6 +598,28 @@ void D3DRTWindow::CreateShaderResourceHeap()
     cbvDesc.BufferLocation = m_cameraBuffer->GetGPUVirtualAddress();
     cbvDesc.SizeInBytes = m_cameraBufferSize;
     g_device->CreateConstantBufferView(&cbvDesc, srvHandle);
+
+    // Frame count
+    srvHandle.ptr +=
+        g_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+    // Describe and create a constant buffer view for frame count
+    D3D12_CONSTANT_BUFFER_VIEW_DESC globalCbvDesc = {};
+    globalCbvDesc.BufferLocation = m_rayTracingGlobalConstantBuffer->GetGPUVirtualAddress();
+    globalCbvDesc.SizeInBytes = m_rayTracingGlobalConstantBufferSize;
+    g_device->CreateConstantBufferView(&globalCbvDesc, srvHandle);
+
+    // Frame texture
+    srvHandle.ptr +=
+        g_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+    // Describe and create a constant buffer view for frame count
+    D3D12_SHADER_RESOURCE_VIEW_DESC frameSrvDesc = {};
+    frameSrvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    frameSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    frameSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    frameSrvDesc.Texture2D.MipLevels = 1;
+    g_device->CreateShaderResourceView(m_frameBuffer.Get(), &frameSrvDesc, srvHandle);
 }
 
 //-----------------------------------------------------------------------------
@@ -640,7 +667,7 @@ void D3DRTWindow::CreateShaderBindingTable()
         m_sbtHelper.AddHitGroup(
             L"HitGroup", 
             { 
-                (void*)(m_perInstanceConstantBuffers[i]->GetGPUVirtualAddress()),
+                (void*)(m_rayTracingGlobalConstantBuffer->GetGPUVirtualAddress()),
                 (void*)(m_dragonMeshResource->GetVertexBuffer()->GetGPUVirtualAddress()),
                 (void*)(m_dragonMeshResource->GetIndexBuffer()->GetGPUVirtualAddress())
             }
@@ -651,12 +678,12 @@ void D3DRTWindow::CreateShaderBindingTable()
 
     // The plane also uses a constant buffer for its vertex colors
     // #DXR Extra - Another ray type
-    m_sbtHelper.AddHitGroup(L"PlaneHitGroup", { (void*)(m_perInstanceConstantBuffers[0]->GetGPUVirtualAddress()), heapPointer });
+    m_sbtHelper.AddHitGroup(L"PlaneHitGroup", { (void*)(m_rayTracingGlobalConstantBuffer->GetGPUVirtualAddress()), heapPointer });
     m_sbtHelper.AddHitGroup(L"ShadowHitGroup", {});
 
     // menger sponge fractal
     m_sbtHelper.AddHitGroup(L"HitGroup", {
-        (void*)(m_perInstanceConstantBuffers[0]->GetGPUVirtualAddress()),
+        (void*)(m_rayTracingGlobalConstantBuffer->GetGPUVirtualAddress()),
         (void*)(m_mengerMeshResource->GetVertexBuffer()->GetGPUVirtualAddress()),
         (void*)(m_mengerMeshResource->GetIndexBuffer()->GetGPUVirtualAddress())
         });
@@ -820,54 +847,7 @@ void D3DRTWindow::CheckRaytracingSupport()
         throw std::runtime_error("Raytracing not supported on device");
 }
 
-//-----------------------------------------------------------------------------
-// The ray generation shader needs to access 2 resources: the raytracing output
-// and the top-level acceleration structure
-//
-ComPtr<ID3D12RootSignature> D3DRTWindow::CreateRayGenSignature() {
-    nv_helpers_dx12::RootSignatureGenerator rsc;
-    rsc.AddHeapRangesParameter(
-        { {0 /*u0*/, 1 /*1 descriptor */, 0 /*use the implicit register space 0*/,
-        D3D12_DESCRIPTOR_RANGE_TYPE_UAV /* UAV representing the output buffer*/,
-        0 /*heap slot where the UAV is defined*/},
-       {0 /*t0*/, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV /*Top-level acceleration structure*/, 1},
-       {0 /*b0*/, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_CBV /*Camera parameters*/, 2} });
-
-    return rsc.Generate(g_device.Get(), true);
-}
-
-//-----------------------------------------------------------------------------
-// The hit shader communicates only through the ray payload, and therefore does
-// not require any resources
-//
-ComPtr<ID3D12RootSignature> D3DRTWindow::CreateHitSignature() {
-    nv_helpers_dx12::RootSignatureGenerator rsc;
-    // #DXR Extra: Per-Instance Data
-    // The vertex colors may differ for each instance, so it is not possible to
-    // point to a single buffer in the heap. Instead we use the concept of root
-    // parameters, which are defined directly by a pointer in memory. In the
-    // shader binding table we will associate each hit shader instance with its
-    // constant buffer. Here we bind the buffer to the first slot, accessible in
-    // HLSL as register(b0)
-    rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_CBV, 0 /*b0*/);
-    rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_SRV, 0 /*t0*/); // vertices
-    rsc.AddRootParameter(D3D12_ROOT_PARAMETER_TYPE_SRV, 1 /*t1*/); // indices
-    rsc.AddHeapRangesParameter({
-        { 2 /*t2*/, 1, 0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1 /*2nd slot of the heap*/ },
-        });
-    return rsc.Generate(g_device.Get(), true);
-}
-
 ComPtr<ID3D12RootSignature> D3DRTWindow::CreateProcedualGeometryHitSignature() {
-    nv_helpers_dx12::RootSignatureGenerator rsc;
-    return rsc.Generate(g_device.Get(), true);
-}
-
-//-----------------------------------------------------------------------------
-// The miss shader communicates only through the ray payload, and therefore
-// does not require any resources
-//
-ComPtr<ID3D12RootSignature> D3DRTWindow::CreateMissSignature() {
     nv_helpers_dx12::RootSignatureGenerator rsc;
     return rsc.Generate(g_device.Get(), true);
 }
@@ -909,13 +889,36 @@ void D3DRTWindow::CreateRaytracingPipeline() {
     // Procedural Geometry
     pipeline.AddLibrary(m_procedualGeometryLibrary.Get(), { L"SphereIntersection", L"SphereClosestHit" });
 
-    // To be used, each DX12 shader needs a root signature defining which
-    // parameters and buffers will be accessed.
-    m_rayGenSignature = CreateRayGenSignature();
-    m_missSignature = CreateMissSignature();
-    m_hitSignature = CreateHitSignature();
-    m_shadowSignature = CreateHitSignature();
-    m_procedualGeometrySignature = CreateProcedualGeometryHitSignature();
+    // Create signature for each shader type
+    m_rayGenSig.Reset(1);
+
+    m_rayGenSig[0].InitAsDescriptorTable(5);
+    m_rayGenSig[0].SetTableRange(0, D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 0 /*u0*/, 1); // u0, raytracing output
+    m_rayGenSig[0].SetTableRange(1, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 0 /*t0*/, 1); // t0, TLAS
+    m_rayGenSig[0].SetTableRange(2, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 0 /*b0*/, 1); // b0, camera parameters
+    m_rayGenSig[0].SetTableRange(3, D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1 /*b1*/, 1); // b1, global parameters (frameCount)
+    m_rayGenSig[0].SetTableRange(4, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1 /*t1*/, 1); // t1, frame texture buffer
+
+    m_rayGenSig.Finalize(L"RayGen", D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE);
+
+    m_hitSig.Reset(4);
+    m_hitSig[0].InitAsConstantBuffer(0 /*b0*/);
+    m_hitSig[1].InitAsBufferSRV(0 /*t0*/); // vertices
+    m_hitSig[2].InitAsBufferSRV(1 /*t1*/); // indices
+    m_hitSig[3].InitAsDescriptorTable(1);
+    m_hitSig[3].SetTableRange(0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2 /*t2*/, 1, 0, 1 /*2nd slot of the heap*/); // t2, BVH
+    m_hitSig.Finalize(L"Hit", D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE);
+
+    m_missSig.Reset(0);
+    m_missSig.Finalize(L"Miss", D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE);
+
+    m_shadowSig.Reset(4);
+    m_shadowSig[0].InitAsConstantBuffer(0 /*b0*/);
+    m_shadowSig[1].InitAsBufferSRV(0 /*t0*/); // vertices
+    m_shadowSig[2].InitAsBufferSRV(1 /*t1*/); // indices
+    m_shadowSig[3].InitAsDescriptorTable(1);
+    m_shadowSig[3].SetTableRange(0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2 /*t2*/, 1, 0, 1 /*2nd slot of the heap*/); // t2, BVH
+    m_shadowSig.Finalize(L"Shadow", D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE);
 
     // 3 different shaders can be invoked to obtain an intersection: an
     // intersection shader is called
@@ -950,10 +953,10 @@ void D3DRTWindow::CreateRaytracingPipeline() {
     // to as hit groups, meaning that the underlying intersection, any-hit and
     // closest-hit shaders share the same root signature.
     // #DXR Extra - Another ray type
-    pipeline.AddRootSignatureAssociation(m_rayGenSignature.Get(), { L"RayGen" });
-    pipeline.AddRootSignatureAssociation(m_missSignature.Get(), { L"Miss", L"ShadowMiss" });
-    pipeline.AddRootSignatureAssociation(m_hitSignature.Get(), { L"HitGroup", L"PlaneHitGroup" });
-    pipeline.AddRootSignatureAssociation(m_shadowSignature.Get(), { L"ShadowHitGroup" });
+    pipeline.AddRootSignatureAssociation(m_rayGenSig.GetSignature(), {L"RayGen"});
+    pipeline.AddRootSignatureAssociation(m_missSig.GetSignature(), {L"Miss", L"ShadowMiss"});
+    pipeline.AddRootSignatureAssociation(m_hitSig.GetSignature(), { L"HitGroup", L"PlaneHitGroup" });
+    pipeline.AddRootSignatureAssociation(m_shadowSig.GetSignature(), {L"ShadowHitGroup"});
     pipeline.AddRootSignatureAssociation(m_procedualGeometrySignature.Get(), { L"ProcedualGeometryHitGroup" });
 
     // The payload size defines the maximum size of the data carried by the rays,
@@ -1126,11 +1129,74 @@ void D3DRTWindow::UpdateMaterialBuffer()
     m_materialBuffer->Unmap(0, nullptr);
 }
 
+void D3DRTWindow::CreateRayTracingGlobalConstantBuffer()
+{
+	// align to 256 bytes for the descriptor heap
+	m_rayTracingGlobalConstantBufferSize = (sizeof(RayTracingGlobalParams) + 255) & ~255;
+
+	// Create the constant buffer for all matrices
+    m_rayTracingGlobalConstantBuffer = nv_helpers_dx12::CreateBuffer(
+		g_device.Get(), m_rayTracingGlobalConstantBufferSize, D3D12_RESOURCE_FLAG_NONE,
+		D3D12_RESOURCE_STATE_GENERIC_READ, nv_helpers_dx12::kUploadHeapProps);
+
+	// Create a descriptor heap that will be used by the ray tracing shaders
+    m_rayTracingGlobalConstantHeap = nv_helpers_dx12::CreateDescriptorHeap(
+		g_device.Get(), 1, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+
+	// Describe and create the constant buffer view.
+	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+	cbvDesc.BufferLocation = m_rayTracingGlobalConstantBuffer->GetGPUVirtualAddress();
+	cbvDesc.SizeInBytes = m_rayTracingGlobalConstantBufferSize;
+
+	// Get a handle to the heap memory on the CPU side, to be able to write the
+	// descriptors directly
+	D3D12_CPU_DESCRIPTOR_HANDLE srvHandle =
+		m_rayTracingGlobalConstantHeap->GetCPUDescriptorHandleForHeapStart();
+	g_device->CreateConstantBufferView(&cbvDesc, srvHandle);
+
+    RayTracingGlobalParams params = {};
+	params.frameCount = 0;
+
+	// Copy material data
+	uint8_t* pData;
+	ThrowIfFailed(m_rayTracingGlobalConstantBuffer->Map(0, nullptr, (void**)&pData));
+	memcpy(pData, &params, m_rayTracingGlobalConstantBufferSize);
+	m_rayTracingGlobalConstantBuffer->Unmap(0, nullptr);
+
+}
+
+void D3DRTWindow::UpdateRayTracingGlobalConstantBuffer()
+{
+    RayTracingGlobalParams params = {};
+	params.frameCount = m_rayTracingFrameCount;
+
+	// Copy material data
+	uint8_t* pData;
+	ThrowIfFailed(m_rayTracingGlobalConstantBuffer->Map(0, nullptr, (void**)&pData));
+	memcpy(pData, &params, m_rayTracingGlobalConstantBufferSize);
+	m_rayTracingGlobalConstantBuffer->Unmap(0, nullptr);
+}
+
+void D3DRTWindow::UpdateFrameBuffer()
+{
+    g_commandList->ResourceBarrier(1,
+        &CD3DX12_RESOURCE_BARRIER::Transition(m_frameBuffer.Get(),
+            D3D12_RESOURCE_STATE_COMMON,
+            D3D12_RESOURCE_STATE_COPY_DEST));
+
+    g_commandList->CopyResource(m_frameBuffer.Get(), m_outputResource.Get());
+
+    g_commandList->ResourceBarrier(1,
+        &CD3DX12_RESOURCE_BARRIER::Transition(m_frameBuffer.Get(),
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            D3D12_RESOURCE_STATE_COMMON));
+}
+
 void D3DRTWindow::CreateRasterizerDescriptorHeap()
 {
     // Create descriptor heap for default heap buffer
     D3D12_DESCRIPTOR_HEAP_DESC rasterizerDescHeapDesc = {};
-    rasterizerDescHeapDesc.NumDescriptors = 2; // 1 is the texture, 2 is for imgui
+    rasterizerDescHeapDesc.NumDescriptors = 2; // 1 is the texture, 2 is for imgui, 3 is for test raytracing output
     rasterizerDescHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     rasterizerDescHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
@@ -1159,7 +1225,7 @@ void D3DRTWindow::InitImGui()
 
     // Setup Platform/Renderer backends
     ImGui_ImplWin32_Init(Win32Application::GetHwnd());
-    ImGui_ImplDX12_Init(g_device.Get(), 3 /*TODO: Not sure*/,
+    ImGui_ImplDX12_Init(g_device.Get(), 2,
         DXGI_FORMAT_R8G8B8A8_UNORM, m_rastSrvUavDescHeap.Get(),
         cpuHandle,
         gpuHandle);
@@ -1266,43 +1332,6 @@ void D3DRTWindow::LoadMeshes()
     m_armadilloMeshResource = std::make_shared<MeshResource>(armadilloMesh, "armadillo", armadilloMaterial, armadilloTransform);
     m_armadilloMeshResource->UploadResource();
 
-}
-
-void D3DRTWindow::CreatePerInstanceConstantBuffers()
-{
-    // Due to HLSL packing rules, we create the CB with 9 float4 (each needs to start on a 16-byte
-    // boundary)
-    XMVECTOR bufferData[] = {
-        // A
-        XMVECTOR{1.0f, 0.0f, 0.0f, 1.0f},
-        XMVECTOR{1.0f, 0.4f, 0.0f, 1.0f},
-        XMVECTOR{1.f, 0.7f, 0.0f, 1.0f},
-
-        // B
-        XMVECTOR{0.0f, 1.0f, 0.0f, 1.0f},
-        XMVECTOR{0.0f, 1.0f, 0.4f, 1.0f},
-        XMVECTOR{0.0f, 1.0f, 0.7f, 1.0f},
-
-        // C
-        XMVECTOR{0.0f, 0.0f, 1.0f, 1.0f},
-        XMVECTOR{0.4f, 0.0f, 1.0f, 1.0f},
-        XMVECTOR{0.7f, 0.0f, 1.0f, 1.0f},
-    };
-
-    m_perInstanceConstantBuffers.resize(3);
-    int i(0);
-    for (auto& cb : m_perInstanceConstantBuffers)
-    {
-        const uint32_t bufferSize = sizeof(XMVECTOR) * 3;
-        cb = nv_helpers_dx12::CreateBuffer(g_device.Get(), bufferSize, D3D12_RESOURCE_FLAG_NONE,
-            D3D12_RESOURCE_STATE_GENERIC_READ,
-            nv_helpers_dx12::kUploadHeapProps);
-        uint8_t* pData;
-        ThrowIfFailed(cb->Map(0, nullptr, (void**)&pData));
-        memcpy(pData, &bufferData[i * 3], bufferSize);
-        cb->Unmap(0, nullptr);
-        ++i;
-    }
 }
 
 //-----------------------------------------------------------------------------
@@ -1464,8 +1493,8 @@ void D3DRTWindow::ImportTexture() {
         D3D12_RESOURCE_DESC textureDesc = {};
         textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
         textureDesc.Alignment = 0;
-        textureDesc.Width = width;
-        textureDesc.Height = height;
+        textureDesc.Width = 1280;
+        textureDesc.Height = 720;
         textureDesc.DepthOrArraySize = 1;
         textureDesc.MipLevels = 1;
         textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -1533,4 +1562,29 @@ void D3DRTWindow::ImportTexture() {
         srvDesc.Texture2D.MipLevels = 1;
         g_device->CreateShaderResourceView(m_textureBuffer.Get(), &srvDesc, textureDescHeapHandle);
     }
+}
+
+void D3DRTWindow::CreateFrameResourcesBuffer()
+{
+    D3D12_RESOURCE_DESC frameDesc = {};
+    frameDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    frameDesc.Alignment = 0;
+    frameDesc.Width = GetWidth();
+    frameDesc.Height = GetHeight();
+    frameDesc.DepthOrArraySize = 1;
+    frameDesc.MipLevels = 1;
+    frameDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    frameDesc.SampleDesc.Count = 1;
+    frameDesc.SampleDesc.Quality = 0;
+    frameDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+    frameDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+    ThrowIfFailed(g_device->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+        D3D12_HEAP_FLAG_NONE,
+        &frameDesc,
+        D3D12_RESOURCE_STATE_COMMON,// default heap is copy destination, so init as common state
+        nullptr,
+        IID_PPV_ARGS(&m_frameBuffer)));
+
+    m_frameBuffer->SetName(L"Last Frame");
 }
