@@ -3,6 +3,7 @@
 void GraphicsRenderer::Draw(const std::shared_ptr<MeshResource> meshResource)
 {
     g_commandList->SetGraphicsRootConstantBufferView(2 /*root sig param 2*/, meshResource->GetWorldMatrixBuffer()->GetGPUVirtualAddress());
+    g_commandList->SetGraphicsRootConstantBufferView(3 /*root sig param 3*/, meshResource->GetMaterial()->GetMaterialBuffer()->GetGPUVirtualAddress());
 
     switch (meshResource->GetMaterial()->GetType())
     {
@@ -54,7 +55,7 @@ void GraphicsRenderer::Initialize(void)
         m_rootSig[1].InitAsDescriptorTable(1, D3D12_SHADER_VISIBILITY_PIXEL);
         m_rootSig[1].SetTableRange(0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 0 /*t0*/, 1, 0);
         m_rootSig[2].InitAsConstantBuffer(1, D3D12_SHADER_VISIBILITY_ALL); // world matrix
-        m_rootSig[3].InitAsConstantBuffer(2, D3D12_SHADER_VISIBILITY_ALL); // disney material
+        m_rootSig[3].InitAsConstantBuffer(2, D3D12_SHADER_VISIBILITY_ALL); // material params buffer
         m_rootSig.Finalize(L"RootSignature", D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 	}
 

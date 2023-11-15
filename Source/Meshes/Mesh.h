@@ -41,7 +41,7 @@ class Mesh
 public:
     Mesh(std::vector<Vertex>& vertices) {
         m_vertices = std::move(vertices);
-        m_vertexCount = m_vertices.size();
+        m_vertexCount = (UINT) m_vertices.size();
         m_indexCount = 0;
         m_verticeOnly = true;
     }
@@ -49,8 +49,8 @@ public:
     Mesh(std::vector<Vertex>& vertices, std::vector<UINT>& indices) {
         m_vertices = std::move(vertices);
         m_indices = std::move(indices);
-        m_vertexCount = m_vertices.size();
-        m_indexCount = m_indices.size();
+        m_vertexCount = (UINT) m_vertices.size();
+        m_indexCount = (UINT) m_indices.size();
     }
 
     const std::vector<Vertex>& GetVertices() const { return m_vertices; }
@@ -71,20 +71,4 @@ private:
     UINT m_indexCount;
 
     bool m_verticeOnly = false;
-};
-
-class DisneyMaterialParams
-{
-public:
-    XMFLOAT3 baseColor;
-    float metallic;
-    float subsurface;
-    float specular;
-    float roughness;
-    float specularTint;
-    float anisotropic;
-    float sheen;
-    float sheenTint;
-    float clearcoat;
-    float clearcoatGloss;
 };

@@ -1,8 +1,15 @@
 #pragma once
 
 #include "DXAPI/stdafx.h"
+#include "GraphicsCore.h"
 
 using namespace DirectX;
+using Microsoft::WRL::ComPtr;
+using Graphics::g_device;
+using Graphics::g_commandAllocator;
+using Graphics::g_commandQueue;
+using Graphics::g_commandList;
+
 
 enum MaterialType
 {
@@ -13,44 +20,114 @@ enum MaterialType
 	Count
 };
 
-class IMaterial
+struct IMaterialParams 
+{
+
+};
+
+struct BaseMaterialParams : public IMaterialParams
+{
+	XMFLOAT4 baseColor;
+};
+
+struct PhongMaterialParams : public IMaterialParams
+{
+	XMFLOAT4 kd;
+	XMFLOAT4 ka;	// When kd set as float4, cbuffer in HLSL will align to 16 bytes, should padding float3 to float4
+	XMFLOAT4 ks;
+};
+
+struct DisneyMaterialParams : public IMaterialParams
+{
+	XMFLOAT4 baseColor;
+	float metallic;
+	float subsurface;
+	float specular;
+	float roughness;
+	float specularTint;
+	float anisotropic;
+	float sheen;
+	float sheenTint;
+	float clearcoat;
+	float clearcoatGloss;
+};
+
+class IMaterialResource
 {
 public:
 	MaterialType GetType() { return m_type; }
-protected:
-	MaterialType m_type;
+	ComPtr<ID3D12Resource> GetMaterialBuffer() { return m_materialBuffer; }
 
+	virtual void SetMaterialParams(const IMaterialParams& params) = 0;
+	virtual void UploadResource() = 0;
+protected:
+	virtual void UpdateMaterialBuffer() = 0;
+	void CreateUploadBuffer(const void* const initData, const UINT64 byteSize, ComPtr<ID3D12Resource>& buffer);
+
+	MaterialType m_type;
+	ComPtr<ID3D12Resource> m_materialBuffer = nullptr;
 };
 
-class BaseMaterial : public IMaterial
+///////////////////////////////////////////
+///////// BaseMaterialResource ////////////
+///////////////////////////////////////////
+class BaseMaterialResource : public IMaterialResource
 {
 public:
-	BaseMaterial() {
+	BaseMaterialResource() : m_baseColor(XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f)) {
 		m_type = MaterialType::Base;
 	}
-	~BaseMaterial() {}
+
+	BaseMaterialResource(const BaseMaterialParams& params) : m_baseColor(params.baseColor) {
+		m_type = MaterialType::Base;
+	}
+
+	~BaseMaterialResource() {}
+
+	void SetMaterialParams(const IMaterialParams& params) override;
+	void UploadResource() override;
 
 public:
+	void UpdateMaterialBuffer() override;
+
+	XMFLOAT4 m_baseColor;
 };
 
-class PhongMaterial : public IMaterial
+///////////////////////////////////////////
+///////// PhongMaterialResource ///////////
+///////////////////////////////////////////
+class PhongMaterialResource : public IMaterialResource
 {
 public:
-	PhongMaterial() : ka(0.f), kd(0.f), ks(0.f) {
+	PhongMaterialResource() : m_kd(0.f, 0.f, 0.f, 1.f), m_ka(0.f, 0.f, 0.f, 1.f), m_ks(0.f, 0.f, 0.f, 1.f) {
 		m_type = MaterialType::Phong;
 	}
-	~PhongMaterial() {}
+
+	PhongMaterialResource(const PhongMaterialParams& params) : m_kd(params.kd), m_ka(params.ka), m_ks(params.ks) {
+		m_type = MaterialType::Phong;
+	}
+
+	~PhongMaterialResource() {}
+
+	void SetMaterialParams(const IMaterialParams& params) override;
+	void UploadResource() override;
 
 public:
-	float ka;
-	float kd;
-	float ks;
+	
+	void UpdateMaterialBuffer() override;
+
+	XMFLOAT4 m_kd;
+	XMFLOAT4 m_ka;
+	XMFLOAT4 m_ks;
 };
 
-class DisneyMaterial : public IMaterial
+///////////////////////////////////////////
+///////// DisneyMaterialResource //////////
+///////////////////////////////////////////
+class DisneyMaterialResource : public IMaterialResource
 {
 public:
-	DisneyMaterial() : 
+	DisneyMaterialResource() :
 	m_baseColor(XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f)), 
 	m_metallic(0.0f),
 	m_subsurface(0.0f), 
@@ -64,9 +141,30 @@ public:
 	m_clearcoatGloss(0.0f) {
 		m_type = MaterialType::Disney;
 	}
-	~DisneyMaterial() {}
+
+	DisneyMaterialResource(const DisneyMaterialParams& params) :
+	m_baseColor(params.baseColor),
+	m_metallic(params.metallic),
+	m_subsurface(params.subsurface),
+	m_specular(params.specular),
+	m_roughness(params.roughness),
+	m_specularTint(params.specularTint),
+	m_anisotropic(params.anisotropic),
+	m_sheen(params.sheen),
+	m_sheenTint(params.sheenTint),
+	m_clearcoat(params.clearcoat),
+	m_clearcoatGloss(params.clearcoatGloss) {
+		m_type = MaterialType::Disney;
+	}
+
+	~DisneyMaterialResource() {}
+
+	void SetMaterialParams(const IMaterialParams& params) override;
+	void UploadResource() override;
 
 public:
+	void UpdateMaterialBuffer() override;
+
 	XMFLOAT4 m_baseColor;
 	float m_metallic;
 	float m_subsurface;

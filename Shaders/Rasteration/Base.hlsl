@@ -11,6 +11,11 @@ cbuffer WorldMatrix : register(b1)
     float4x4 world;
 }
 
+cbuffer BaseMaterialParams : register(b2)
+{
+    float4 baseColor;
+}
+
 struct VSInput
 {
     float4 position : POSITION;

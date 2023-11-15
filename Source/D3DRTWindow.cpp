@@ -71,7 +71,6 @@ void D3DRTWindow::OnInit()
     // #DXR Extra: Perspective Camera
     // Create a buffer to store the modelview and perspective camera matrices
     CreateCameraBuffer();
-    CreateMaterialBuffer();
     CreateRayTracingGlobalConstantBuffer();
 
     // Create the buffer containing the raytracing result (always output in a
@@ -351,11 +350,8 @@ void D3DRTWindow::PopulateCommandList()
     // Record commands.
     // #DXR
     if (m_raster) {
-        // g_commandList->SetPipelineState(m_basePSO.GetPipelineStateObject());
-
         // set the constant buffer descriptor heap
         g_commandList->SetGraphicsRootConstantBufferView(0 /*root sig param 0*/, m_cameraBuffer.Get()->GetGPUVirtualAddress()); // camera buffer
-        g_commandList->SetGraphicsRootConstantBufferView(3 /*root sig param 3*/, m_materialBuffer.Get()->GetGPUVirtualAddress()); // Disney material params
         // set the root descriptor table 1 to the texture descriptor heap
         std::vector< ID3D12DescriptorHeap* > heaps = { m_rastSrvUavDescHeap.Get() };
         g_commandList->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
@@ -1066,55 +1062,10 @@ void D3DRTWindow::UpdateCameraBuffer()
     m_cameraBuffer->Unmap(0, nullptr);
 }
 
-void D3DRTWindow::CreateMaterialBuffer()
-{
-    // align to 256 bytes for the descriptor heap
-    m_materialBufferSize = (sizeof(DisneyMaterialParams) + 255) & ~255;
-
-    // Create the constant buffer for all matrices
-    m_materialBuffer = nv_helpers_dx12::CreateBuffer(
-		g_device.Get(), m_materialBufferSize, D3D12_RESOURCE_FLAG_NONE,
-		D3D12_RESOURCE_STATE_GENERIC_READ, nv_helpers_dx12::kUploadHeapProps);
-
-	// Create a descriptor heap that will be used by the rasterization shaders
-    m_materialHeap = nv_helpers_dx12::CreateDescriptorHeap(
-		g_device.Get(), 1, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
-
-	// Describe and create the constant buffer view.
-	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-	cbvDesc.BufferLocation = m_materialBuffer->GetGPUVirtualAddress();
-	cbvDesc.SizeInBytes = m_materialBufferSize;
-
-	// Get a handle to the heap memory on the CPU side, to be able to write the
-	// descriptors directly
-	D3D12_CPU_DESCRIPTOR_HANDLE srvHandle =
-		m_materialHeap->GetCPUDescriptorHandleForHeapStart();
-	g_device->CreateConstantBufferView(&cbvDesc, srvHandle);
-
-    DisneyMaterialParams params = {};
-    params.baseColor = XMFLOAT3(0.82, 0.67, 0.16);
-    params.metallic = 0.9f;
-    params.subsurface = 1.0f;
-    params.specular = 1.0f;
-    params.roughness = 0.0f;
-    params.specularTint = 0.0f;
-    params.anisotropic = 0.0f;
-    params.sheen = 1.0f;
-    params.sheenTint = 0.5f;
-    params.clearcoat = 0.0f;
-    params.clearcoatGloss = 0.0f;
-
-    // Copy material data
-    uint8_t* pData;
-    ThrowIfFailed(m_materialBuffer->Map(0, nullptr, (void**)&pData));
-    memcpy(pData, &params, m_materialBufferSize);
-    m_materialBuffer->Unmap(0, nullptr);
-}
-
 void D3DRTWindow::UpdateMaterialBuffer()
 {
     DisneyMaterialParams params = {};
-    params.baseColor = XMFLOAT3(m_imGuiParams.baseColor.x, m_imGuiParams.baseColor.y, m_imGuiParams.baseColor.z);
+    params.baseColor = XMFLOAT4(m_imGuiParams.baseColor.x, m_imGuiParams.baseColor.y, m_imGuiParams.baseColor.z, m_imGuiParams.baseColor.w);
     params.metallic = m_imGuiParams.metallic;
     params.subsurface = m_imGuiParams.subsurface;
     params.specular = m_imGuiParams.specular;
@@ -1126,11 +1077,8 @@ void D3DRTWindow::UpdateMaterialBuffer()
     params.clearcoat = m_imGuiParams.clearcoat;
     params.clearcoatGloss = m_imGuiParams.clearcoatGloss;
 
-    // Copy material data
-    uint8_t* pData;
-    ThrowIfFailed(m_materialBuffer->Map(0, nullptr, (void**)&pData));
-    memcpy(pData, &params, m_materialBufferSize);
-    m_materialBuffer->Unmap(0, nullptr);
+    // Update armadillo's material params
+    m_armadilloMeshResource->SetMaterialParam(params);
 }
 
 void D3DRTWindow::CreateRayTracingGlobalConstantBuffer()
@@ -1235,7 +1183,7 @@ void D3DRTWindow::InitImGui()
         gpuHandle);
 
     m_imGuiParams = {};
-    m_imGuiParams.baseColor = ImVec4(0.82, 0.67, 0.16, 1);
+    m_imGuiParams.baseColor = ImVec4(0.82f, 0.67f, 0.16f, 1.f);
     m_imGuiParams.metallic = 0.9f;
     m_imGuiParams.subsurface = 1.0f;
     m_imGuiParams.specular = 1.0f;
@@ -1246,7 +1194,6 @@ void D3DRTWindow::InitImGui()
     m_imGuiParams.sheenTint = 0.5f;
     m_imGuiParams.clearcoat = 0.0f;
     m_imGuiParams.clearcoatGloss = 0.0f;
-
 }
 
 void D3DRTWindow::RenderImGui()
@@ -1318,10 +1265,15 @@ void D3DRTWindow::LoadMeshes()
     indices.clear();
 
     // Load the dragon model
+    PhongMaterialParams dragonMaterialParams = {};
+    dragonMaterialParams.kd = XMFLOAT4(0.82f, 0.07f, 0.16f, 1.0f);
+    dragonMaterialParams.ka = XMFLOAT4(0.001f, 0.001f, 0.001f, 1.f);
+    dragonMaterialParams.ks = XMFLOAT4(0.7937f, 0.7937f, 0.7937f, 1.f);
+
     ModelLoader::LoadModel("Models/stanford-dragon-pbr/model.dae", vertices, indices);
     std::shared_ptr<Mesh> dragonMesh = std::make_shared<Mesh>(vertices, indices);
     XMMATRIX dragonTransform = XMMatrixScaling(0.008f, 0.008f, 0.008f) * XMMatrixTranslation(1, 0, 0);
-    std::shared_ptr<IMaterial> dragonMaterial = std::make_shared<PhongMaterial>();
+    std::shared_ptr<IMaterialResource> dragonMaterial = std::make_shared<PhongMaterialResource>(dragonMaterialParams);
     m_dragonMeshResource = std::make_shared<MeshResource>(dragonMesh, "dragon", dragonMaterial, dragonTransform);
     m_dragonMeshResource->UploadResource();
 
@@ -1329,10 +1281,24 @@ void D3DRTWindow::LoadMeshes()
     indices.clear();
 
     // Load the armadillo model
+    DisneyMaterialParams armadilloMaterialParams = {};
+    armadilloMaterialParams.baseColor = XMFLOAT4(0.82f, 0.67f, 0.16f, 1.0f);
+    armadilloMaterialParams.metallic = 0.9f;
+    armadilloMaterialParams.subsurface = 1.0f;
+    armadilloMaterialParams.specular = 1.0f;
+    armadilloMaterialParams.roughness = 0.0f;
+    armadilloMaterialParams.specularTint = 0.0f;
+    armadilloMaterialParams.anisotropic = 0.0f;
+    armadilloMaterialParams.sheen = 1.0f;
+    armadilloMaterialParams.sheenTint = 0.5f;
+    armadilloMaterialParams.clearcoat = 0.0f;
+    armadilloMaterialParams.clearcoatGloss = 0.0f;
+
     ModelLoader::LoadModel("Models/stanford-armadillo-pbr/model.dae", vertices, indices);
     std::shared_ptr<Mesh> armadilloMesh = std::make_shared<Mesh>(vertices, indices);
     XMMATRIX armadilloTransform = XMMatrixScaling(0.008f, 0.008f, 0.008f) * XMMatrixTranslation(0, 0, 0);
-    std::shared_ptr<IMaterial> armadilloMaterial = std::make_shared<DisneyMaterial>();
+
+    std::shared_ptr<IMaterialResource> armadilloMaterial = std::make_shared<DisneyMaterialResource>(armadilloMaterialParams);
     m_armadilloMeshResource = std::make_shared<MeshResource>(armadilloMesh, "armadillo", armadilloMaterial, armadilloTransform);
     m_armadilloMeshResource->UploadResource();
 

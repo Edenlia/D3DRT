@@ -20,7 +20,7 @@ public:
 	MeshResource(
 		std::shared_ptr<Mesh> mesh, 
 		const std::string& name, 
-		std::shared_ptr<IMaterial> material = std::make_shared<BaseMaterial>(),
+		std::shared_ptr<IMaterialResource> material = std::make_shared<BaseMaterialResource>(),
 		const XMMATRIX& worldMatrix = XMMatrixIdentity()
 	) : m_mesh(mesh) {
 		m_name = name;
@@ -39,7 +39,7 @@ public:
 	const ComPtr<ID3D12Resource>& GetVertexBuffer() const { return m_vertexBuffer; }
 	const ComPtr<ID3D12Resource>& GetIndexBuffer() const { return m_indexBuffer; }
 	const ComPtr<ID3D12Resource>& GetWorldMatrixBuffer() const { return m_worldMatrixBuffer; }
-	const std::shared_ptr<IMaterial>& GetMaterial() const { return m_material; }
+	const std::shared_ptr<IMaterialResource>& GetMaterial() const { return m_material; }
 
 	const UINT GetVertexCount() const { return m_mesh->GetVertexCount(); }
 	const UINT GetIndexCount() const { return m_mesh->GetIndexCount(); }
@@ -50,12 +50,14 @@ public:
 		UpdateWorldBuffer();
 	}
 
-	void UploadResource();
-	void UpdateWorldBuffer();
+	void SetMaterialParam(const IMaterialParams& params) { m_material->SetMaterialParams(params); }
 
+	void UploadResource();
+	
 private:
 	ComPtr<ID3D12Resource> CreateDefaultBuffer(const void* const initData, const UINT64 byteSize, ComPtr<ID3D12Resource>& uploadBuffer);
 	void CreateUploadBuffer(const void* const initData, const UINT64 byteSize, ComPtr<ID3D12Resource>& buffer);
+	void UpdateWorldBuffer();
 
 	bool m_uploaded = false;
 	std::shared_ptr<Mesh> m_mesh;
@@ -67,7 +69,7 @@ private:
 	D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
 	D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
 	std::string m_name;
-	std::shared_ptr<IMaterial> m_material;
+	std::shared_ptr<IMaterialResource> m_material;
 	XMMATRIX m_worldMatrix;
 };
 

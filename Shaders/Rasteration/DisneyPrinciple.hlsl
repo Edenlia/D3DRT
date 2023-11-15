@@ -16,7 +16,7 @@ cbuffer WorldMatrix : register(b1)
 
 cbuffer DisneyMaterialParams : register(b2)
 {
-    float3 baseColor;
+    float4 baseColor;
     float metallic;
     float subsurface;
     float specular;
@@ -115,7 +115,7 @@ float3 Disney_BRDF(float3 L, float3 V, float3 N, float3 X, float3 Y)
     float NdotH = dot(N, H);
     float LdotH = dot(L, H);
 
-    float3 Cdlin = mon2lin(baseColor);
+    float3 Cdlin = mon2lin(baseColor.xyz);
     float Cdlum = .3 * Cdlin[0] + .6 * Cdlin[1] + .1 * Cdlin[2]; // luminance approx.
 
     float3 Ctint = Cdlum > 0 ? Cdlin / Cdlum : float3(1, 1, 1); // normalize lum. to isolate hue+sat

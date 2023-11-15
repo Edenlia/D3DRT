@@ -11,6 +11,13 @@ cbuffer WorldMatrix : register(b1)
     float4x4 world;
 }
 
+cbuffer PhongMaterialParams : register(b2)
+{
+    float4 kd;
+    float4 ka;
+    float4 ks;
+}
+
 Texture2D t1 : register(t0);
 SamplerState s1 : register(s0);
 
@@ -52,9 +59,9 @@ float4 BlinnPhong(BPPayload payload)
     float3 lightPos = float3(3.0, 0.0, 3.0);
     float3 lightIntensity = float3(20.0, 20.0, 20.0);
     
-    float3 ka = float3(0.001, 0.001, 0.001);
-    float3 kd = payload.albedo.xyz;
-    float3 ks = float3(0.7937, 0.7937, 0.7937);
+    float3 bp_kd = payload.albedo.xyz;
+    float3 bp_ka = ka.xyz;
+    float3 bp_ks = ks.xyz;
     
     float p = 100.0;
     
@@ -67,9 +74,9 @@ float4 BlinnPhong(BPPayload payload)
     float3 Ld = float3(0.0, 0.0, 0.0);
     float3 Ls = float3(0.0, 0.0, 0.0);
     float3 La = float3(0.0, 0.0, 0.0);
-    Ld = kd * I * max(0.0, dot(n, wi)) / r2;
-    Ls = ks * I * pow(max(0.0, dot(n, h)), p) / r2;
-    La = ka * I;
+    Ld = bp_kd * I * max(0.0, dot(n, wi)) / r2;
+    Ls = bp_ks * I * pow(max(0.0, dot(n, h)), p) / r2;
+    La = bp_ka * I;
     
     float3 color = Ld + Ls + La;
     
@@ -111,17 +118,10 @@ float4 PSMain(PSInput input) : SV_TARGET
     
     float4 albedo;
     
-    // Do not have texture
-    if (input.uv.x == 0 && input.uv.y == 0)
-    {
-        albedo = input.color;
-        
-        return albedo;
-    }
-    else
-    {
-        albedo = t1.Sample(s1, input.uv);
-    }
+    
+    albedo = t1.Sample(s1, input.uv);
+    // If no texture
+    // albedo = kd;
         
     float3 lightPos = float3(1.0, 0.0, 1.0);
     float3 lightIntensity = float3(15.0, 15.0, 15.0);

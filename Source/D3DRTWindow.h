@@ -143,11 +143,6 @@ private:
     ComPtr< ID3D12DescriptorHeap > m_cameraHeap;
     uint32_t m_cameraBufferSize = 0;
 
-    // Disney material parameters
-    ComPtr< ID3D12Resource > m_materialBuffer;
-    ComPtr< ID3D12DescriptorHeap > m_materialHeap;
-    uint32_t m_materialBufferSize = 0;
-
     // Ray Tracing Global Constant Buffer
     ComPtr< ID3D12Resource > m_rayTracingGlobalConstantBuffer;
     ComPtr< ID3D12DescriptorHeap > m_rayTracingGlobalConstantHeap;
@@ -222,7 +217,6 @@ private:
     void CreateCameraBuffer();
     void UpdateCameraBuffer();
 
-    void CreateMaterialBuffer();
     void UpdateMaterialBuffer();
 
     void CreateRayTracingGlobalConstantBuffer();

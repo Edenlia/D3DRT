@@ -3,6 +3,9 @@
 
 void MeshResource::UploadResource()
 {
+    if(m_uploaded)
+		return;
+
     {
         const UINT modelVBSize = static_cast<UINT>(m_mesh->GetVertexCount()) * sizeof(Vertex);
 
@@ -27,6 +30,10 @@ void MeshResource::UploadResource()
     {
         const UINT modelCBSize = sizeof(XMMATRIX);
         CreateUploadBuffer(&m_worldMatrix, modelCBSize, m_worldMatrixBuffer);
+    }
+
+    {
+        m_material->UploadResource();
     }
 
     m_uploaded = true;
@@ -101,7 +108,7 @@ void MeshResource::CreateUploadBuffer(const void* const initData, const UINT64 b
 
     // Copy the matrix contents
     uint8_t* pData;
-    ThrowIfFailed(m_worldMatrixBuffer->Map(0, nullptr, (void**)&pData));
+    ThrowIfFailed(buffer->Map(0, nullptr, (void**)&pData));
     memcpy(pData, initData, byteSize);
     buffer->Unmap(0, nullptr);
 }

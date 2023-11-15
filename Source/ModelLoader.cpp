@@ -22,14 +22,14 @@ void ModelLoader::LoadModel(const char* path, std::vector<Vertex>& vertices, std
 
 	ASSERT(scene && !(scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) && scene->mRootNode);
 
-    for (int i = 0; i < scene->mNumMeshes; i++) {
+    for (UINT i = 0; i < scene->mNumMeshes; i++) {
         aiMesh* aMesh = scene->mMeshes[i];
 
         ASSERT(aMesh->HasNormals());
 
         XMFLOAT4 colors[] = { {1.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f, 1.0f} };
 
-        for (int j = 0; j < aMesh->mNumVertices; j++) {
+        for (UINT j = 0; j < aMesh->mNumVertices; j++) {
 			aiVector3D vertex = aMesh->mVertices[j];
             aiVector3D normal = aMesh->mNormals[j];
             aiVector3D uv = aMesh->mTextureCoords[0][j];
@@ -46,9 +46,9 @@ void ModelLoader::LoadModel(const char* path, std::vector<Vertex>& vertices, std
             vertices.push_back(Vertex(p, c, n, u, t, b));
 		}
 
-		for (int j = 0; j < aMesh->mNumFaces; j++) {
+		for (UINT j = 0; j < aMesh->mNumFaces; j++) {
 			aiFace face = aMesh->mFaces[j];
-			for (int k = 0; k < face.mNumIndices; k++) {
+			for (UINT k = 0; k < face.mNumIndices; k++) {
 				indices.push_back(face.mIndices[k]);
 			}
 		}
