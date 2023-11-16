@@ -58,6 +58,7 @@ public:
 	MaterialType GetType() { return m_type; }
 	ComPtr<ID3D12Resource> GetMaterialBuffer() { return m_materialBuffer; }
 
+	virtual std::shared_ptr<IMaterialParams> GetMaterialParams() = 0;
 	virtual void SetMaterialParams(const IMaterialParams& params) = 0;
 	virtual void UploadResource() = 0;
 protected:
@@ -84,6 +85,11 @@ public:
 
 	~BaseMaterialResource() {}
 
+	std::shared_ptr<IMaterialParams> GetMaterialParams() override {
+		std::shared_ptr<BaseMaterialParams> params = std::make_shared<BaseMaterialParams>();
+		params->baseColor = m_baseColor;
+		return params;
+	}
 	void SetMaterialParams(const IMaterialParams& params) override;
 	void UploadResource() override;
 
@@ -109,6 +115,13 @@ public:
 
 	~PhongMaterialResource() {}
 
+	std::shared_ptr<IMaterialParams> GetMaterialParams() override {
+		std::shared_ptr<PhongMaterialParams> params = std::make_shared<PhongMaterialParams>();
+		params->kd = m_kd;
+		params->ka = m_ka;
+		params->ks = m_ks;
+		return params;
+	}
 	void SetMaterialParams(const IMaterialParams& params) override;
 	void UploadResource() override;
 
@@ -159,6 +172,21 @@ public:
 
 	~DisneyMaterialResource() {}
 
+	std::shared_ptr<IMaterialParams> GetMaterialParams() override {
+		std::shared_ptr<DisneyMaterialParams> params = std::make_shared<DisneyMaterialParams>();
+		params->baseColor = m_baseColor;
+		params->metallic = m_metallic;
+		params->subsurface = m_subsurface;
+		params->specular = m_specular;
+		params->roughness = m_roughness;
+		params->specularTint = m_specularTint;
+		params->anisotropic = m_anisotropic;
+		params->sheen = m_sheen;
+		params->sheenTint = m_sheenTint;
+		params->clearcoat = m_clearcoat;
+		params->clearcoatGloss = m_clearcoatGloss;
+		return params;
+	}
 	void SetMaterialParams(const IMaterialParams& params) override;
 	void UploadResource() override;
 

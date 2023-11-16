@@ -12,7 +12,7 @@ class ModelLoader
 {
 public:
 	static void LoadModel(const char* path, std::vector< Vertex >& vertices, std::vector< UINT >& indices);
-	static void CreatePlane(std::vector< Vertex >& vertices);
+	static void CreatePlane(std::vector< Vertex >& vertices, std::vector<UINT>& indices);
 	static void CreateTetrahedron(std::vector< Vertex >& vertices, std::vector< UINT >& indices);
 };
 

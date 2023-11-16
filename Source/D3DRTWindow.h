@@ -182,7 +182,8 @@ private:
     HANDLE m_fenceEvent;
     ComPtr<ID3D12Fence> m_fence;
     UINT64 m_fenceValue;
-    bool m_raster = true;
+    bool m_raster = false;
+    bool m_imguiStateRaster = m_raster;
 
     // #DXR acceleration structure
     ComPtr<ID3D12Resource> m_bottomLevelAS; // Storage for the bottom Level AS

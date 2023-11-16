@@ -52,19 +52,30 @@ void ModelLoader::LoadModel(const char* path, std::vector<Vertex>& vertices, std
 				indices.push_back(face.mIndices[k]);
 			}
 		}
+
+		XMFLOAT3 v1 = vertices[indices[0]].POSITION;
+		XMFLOAT3 v2 = vertices[indices[1]].POSITION;
+		XMFLOAT3 v3 = vertices[indices[2]].POSITION;
+		XMFLOAT3 n1 = vertices[indices[0]].NORMAL;
+		XMFLOAT3 n2 = vertices[indices[1]].NORMAL;
+		XMFLOAT3 n3 = vertices[indices[2]].NORMAL;
+
+		XMFLOAT3 cross1 = XMFLOAT3(v2.x - v1.x, v2.y - v1.y, v2.z - v1.z);
     }
 	
 }
 
-void ModelLoader::CreatePlane(std::vector<Vertex>& vertices)
+void ModelLoader::CreatePlane(std::vector<Vertex>& vertices, std::vector<UINT>& indices)
 {
 	// Define the geometry for a plane.
-	vertices.push_back({ {-10.f, -1.3f, 010.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f} }); // 0
-	vertices.push_back({ {-10.f, -1.3f, -10.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f} }); // 1
-	vertices.push_back({ {010.f, -1.3f, 010.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f} }); // 2
-	vertices.push_back({ {010.f, -1.3f, 010.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f} }); // 2
-	vertices.push_back({ {-10.f, -1.3f, -10.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f} }); // 1
-	vertices.push_back({ {010.f, -1.3f, -10.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f} }); // 4
+	vertices.push_back({ {-10.f, 0.0f, 010.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f}, {.0f, .0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f} }); // 0
+	vertices.push_back({ {-10.f, 0.0f, -10.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f}, {.0f, .0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f} }); // 1
+	vertices.push_back({ {010.f, 0.0f, 010.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f}, {.0f, .0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f} }); // 2
+	vertices.push_back({ {010.f, 0.0f, 010.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f}, {.0f, .0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f} }); // 2
+	vertices.push_back({ {-10.f, 0.0f, -10.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f}, {.0f, .0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f} }); // 1
+	vertices.push_back({ {010.f, 0.0f, -10.f, 1.0f}, {1.0f, 0.7f, 0.3f, 1.0f}, {0.0f, 1.0f, 0.0f}, {.0f, .0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f} }); // 4
+
+	indices = { 0, 1, 2, 3, 4, 5 };
 }
 
 void ModelLoader::CreateTetrahedron(std::vector<Vertex>& vertices, std::vector<UINT>& indices)

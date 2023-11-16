@@ -208,6 +208,6 @@ float4 PSMain(PSInput input) : SV_TARGET
     
     // Gamma correction
     // color = pow(color, 1.0 / 2.2);
-    
+    // return baseColor;
     return float4(color, 1.0);
 }

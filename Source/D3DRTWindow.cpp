@@ -45,8 +45,6 @@ void D3DRTWindow::OnInit()
     LoadPipeline();
     LoadAssets();
 
-    InitImGui();
-
     // Check the raytracing capabilities of the device
     CheckRaytracingSupport();
 
@@ -81,6 +79,8 @@ void D3DRTWindow::OnInit()
     // Create the shader binding table and indicating which shaders
     // are invoked for each instance in the  AS
     CreateShaderBindingTable(); // #DXR
+
+    InitImGui();
 
     // Command lists are created in the recording state, but there is
     // nothing to record yet. The main loop expects it to be closed, so
@@ -252,7 +252,8 @@ void D3DRTWindow::OnUpdate()
 // Render the scene.
 void D3DRTWindow::OnRender()
 {
-    RenderImGui();
+    if (m_raster == m_imguiStateRaster)
+        RenderImGui();
 
     // Record all the commands we need to render the scene into the command list.
     PopulateCommandList();
@@ -282,13 +283,14 @@ void D3DRTWindow::OnKeyUp(UINT8 key)
     if (key == VK_SPACE)
     {
         m_raster = !m_raster;
+        m_rayTracingFrameCount = 0;
     }
 }
 
 void D3DRTWindow::OnButtonDown(UINT32 lParam)
 {
     bool is_hovered_in_imgui = ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
-    if (m_raster && is_hovered_in_imgui) {
+    if (m_raster == m_imguiStateRaster && is_hovered_in_imgui) {
 		return;
 	}
 
@@ -299,7 +301,7 @@ void D3DRTWindow::OnButtonDown(UINT32 lParam)
 void D3DRTWindow::OnMouseMove(UINT8 wParam, UINT32 lParam)
 {
     bool is_hovered_in_imgui = ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
-    if (m_raster && is_hovered_in_imgui) {
+    if (m_raster == m_imguiStateRaster &&  is_hovered_in_imgui) {
         return;
     }
 
@@ -369,8 +371,9 @@ void D3DRTWindow::PopulateCommandList()
         m_renderer->Draw(m_dragonMeshResource);
         m_renderer->Draw(m_armadilloMeshResource);
 
-        ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), g_commandList.Get());
-
+        if (m_imguiStateRaster) {
+            ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), g_commandList.Get());
+        }
     }
     else {
         // #DXR
@@ -448,6 +451,10 @@ void D3DRTWindow::PopulateCommandList()
             m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_COPY_DEST,
             D3D12_RESOURCE_STATE_RENDER_TARGET);
         g_commandList->ResourceBarrier(1, &transition);
+        if (!m_imguiStateRaster) {
+            ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), g_commandList.Get());
+        }
+
         m_rayTracingFrameCount++;
     }
     
@@ -555,7 +562,7 @@ void D3DRTWindow::CreateShaderResourceHeap()
     // Create a SRV/UAV/CBV descriptor heap. We need 3 entries - 1 SRV for the TLAS, 1 UAV for the
     // raytracing output and 1 CBV for the camera matrices, 1 CBV for the frame count, 1 SRV for the frame texture
     m_srvUavHeap = nv_helpers_dx12::CreateDescriptorHeap(
-        g_device.Get(), 5, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+        g_device.Get(), 6, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 
     // Get a handle to the heap memory on the CPU side, to be able to write the
     // descriptors directly
@@ -659,8 +666,11 @@ void D3DRTWindow::CreateShaderBindingTable()
             L"HitGroup", 
             { 
                 (void*)(m_rayTracingGlobalConstantBuffer->GetGPUVirtualAddress()),
-                (void*)(m_dragonMeshResource->GetVertexBuffer()->GetGPUVirtualAddress()),
-                (void*)(m_dragonMeshResource->GetIndexBuffer()->GetGPUVirtualAddress())
+                (void*)(m_armadilloMeshResource->GetVertexBuffer()->GetGPUVirtualAddress()),
+                (void*)(m_armadilloMeshResource->GetIndexBuffer()->GetGPUVirtualAddress()),
+                heapPointer,
+                (void*)(m_armadilloMeshResource->GetMaterial()->GetMaterialBuffer()->GetGPUVirtualAddress())
+
             }
         );
         // #DXR Extra - Another ray type
@@ -674,7 +684,9 @@ void D3DRTWindow::CreateShaderBindingTable()
         { 
             (void*)(m_rayTracingGlobalConstantBuffer->GetGPUVirtualAddress()), 
             (void*)(m_planeMeshResource->GetVertexBuffer()->GetGPUVirtualAddress()),
-            heapPointer /*TODO: HitGroup input data is messed up*/
+            (void*)(m_planeMeshResource->GetIndexBuffer()->GetGPUVirtualAddress()),
+            heapPointer /*TODO: HitGroup input data is messed up*/,
+            (void*)(m_planeMeshResource->GetMaterial()->GetMaterialBuffer()->GetGPUVirtualAddress())
         });
     m_sbtHelper.AddHitGroup(L"ShadowHitGroup", {});
 
@@ -682,18 +694,14 @@ void D3DRTWindow::CreateShaderBindingTable()
     m_sbtHelper.AddHitGroup(L"HitGroup", {
         (void*)(m_rayTracingGlobalConstantBuffer->GetGPUVirtualAddress()),
         (void*)(m_mengerMeshResource->GetVertexBuffer()->GetGPUVirtualAddress()),
-        (void*)(m_mengerMeshResource->GetIndexBuffer()->GetGPUVirtualAddress())
+        (void*)(m_mengerMeshResource->GetIndexBuffer()->GetGPUVirtualAddress()),
+        heapPointer,
+        (void*)(m_mengerMeshResource->GetMaterial()->GetMaterialBuffer()->GetGPUVirtualAddress())
         });
 
 
-    //// #DXR Extra - Another ray type
-    m_sbtHelper.AddHitGroup(L"ShadowHitGroup", {});
-
-    
-    m_sbtHelper.AddHitGroup(L"ProcedualGeometryHitGroup", { });
-    m_sbtHelper.AddHitGroup(L"ShadowHitGroup", {});
-    
-
+    ////// #DXR Extra - Another ray type
+    //m_sbtHelper.AddHitGroup(L"ShadowHitGroup", {});
 
     // Compute the size of the SBT given the number of shaders and their
     // parameters
@@ -767,30 +775,35 @@ void D3DRTWindow::CreateAccelerationStructures()
 {
     // Build the bottom AS from the Triangle vertex buffer
     AccelerationStructureBuffers bottomLevelBuffers =
-        CreateBottomLevelAS({ {m_dragonMeshResource->GetVertexBuffer().Get(), m_dragonMeshResource->GetVertexCount()}}, {{m_dragonMeshResource->GetIndexBuffer().Get(), m_dragonMeshResource->GetIndexCount()}});
+        CreateBottomLevelAS(
+            { {m_armadilloMeshResource->GetVertexBuffer().Get(), m_armadilloMeshResource->GetVertexCount()}},
+            { {m_armadilloMeshResource->GetIndexBuffer().Get(), m_armadilloMeshResource->GetIndexCount()}});
 
     // #DXR Extra: Per-Instance Data
     AccelerationStructureBuffers planeBottomLevelBuffers =
-        CreateBottomLevelAS({ {m_planeMeshResource->GetVertexBuffer().Get(), 6}});
+        CreateBottomLevelAS(
+            { {m_planeMeshResource->GetVertexBuffer().Get(), m_planeMeshResource->GetVertexCount()} },
+            { {m_planeMeshResource->GetIndexBuffer().Get(), m_planeMeshResource->GetIndexCount()} });
 
      //#DXR Extra: Indexed Geometry    
      //Build the bottom AS from the Menger Sponge vertex buffer
      //#DXR Extra: Indexed Geometry
      //Build the bottom AS from the Menger Sponge vertex buffer
     AccelerationStructureBuffers mengerBottomLevelBuffers =
-        CreateBottomLevelAS({ {m_mengerMeshResource->GetVertexBuffer().Get(), m_mengerMeshResource->GetVertexCount()}},
+        CreateBottomLevelAS(
+            { {m_mengerMeshResource->GetVertexBuffer().Get(), m_mengerMeshResource->GetVertexCount()}},
             { {m_mengerMeshResource->GetIndexBuffer().Get(), m_mengerMeshResource->GetIndexCount()}});
 
-    // AccelerationStructureBuffers sphereBottomLevelBuffers = CreateAABBBottomLevelAS();
+     //AccelerationStructureBuffers sphereBottomLevelBuffers = CreateAABBBottomLevelAS();
 
     // Just one instance for now
     m_instances = 
     { 
         {bottomLevelBuffers.pResult, XMMatrixScaling(0.008f, 0.008f, 0.008f) * XMMatrixIdentity()},
-        {bottomLevelBuffers.pResult, XMMatrixScaling(0.008f, 0.008f, 0.008f) * XMMatrixTranslation(-.6f, 0, 0)},
-        {bottomLevelBuffers.pResult, XMMatrixScaling(0.008f, 0.008f, 0.008f) * XMMatrixTranslation(.6f, 0, 0)},
-        {planeBottomLevelBuffers.pResult, XMMatrixTranslation(0, 0, 0)},
-        {mengerBottomLevelBuffers.pResult, XMMatrixIdentity() /*add merger sponge*/},
+        {bottomLevelBuffers.pResult, XMMatrixScaling(0.008f, 0.008f, 0.008f) * XMMatrixTranslation(-1.f, 0, 0)},
+        {bottomLevelBuffers.pResult, XMMatrixScaling(0.008f, 0.008f, 0.008f) * XMMatrixTranslation(1.f, 0, 0)},
+        {planeBottomLevelBuffers.pResult, XMMatrixTranslation(0, -.3, 0) },
+        {mengerBottomLevelBuffers.pResult, XMMatrixTranslation(0, 0, 1.0f) /*add merger sponge*/},
     };
     CreateTopLevelAS(m_instances);
 
@@ -905,7 +918,7 @@ void D3DRTWindow::CreateRaytracingPipeline() {
     m_hitSig[1].InitAsBufferSRV(0 /*t0*/); // vertices
     m_hitSig[2].InitAsBufferSRV(1 /*t1*/); // indices
     m_hitSig[3].InitAsDescriptorTable(1);
-    m_hitSig[3].SetTableRange(0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2 /*t2*/, 1, 0, 1 /*2nd slot of the heap*/); // t2, BVH
+    m_hitSig[3].SetTableRange(0, D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2 /*t2*/, 1, 0, 1 /*2nd slot of the heap*/); // t2, TLAS
     m_hitSig[4].InitAsConstantBuffer(1 /*b1*/); // b1, material buffer
     m_hitSig.Finalize(L"Hit", D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE);
 
@@ -1170,30 +1183,58 @@ void D3DRTWindow::InitImGui()
     ImGui::StyleColorsDark();
     //ImGui::StyleColorsLight();
 
-    D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_rastSrvUavDescHeap->GetCPUDescriptorHandleForHeapStart();
-    D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = m_rastSrvUavDescHeap->GetGPUDescriptorHandleForHeapStart();
-    cpuHandle.ptr += g_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-    gpuHandle.ptr += g_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle;
+    D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle;
+    ComPtr<ID3D12DescriptorHeap> descHeap;
+
+    // Rasteration and raytracing use different descriptor heaps
+    if (m_raster) {
+        descHeap = m_rastSrvUavDescHeap;
+        cpuHandle = m_rastSrvUavDescHeap->GetCPUDescriptorHandleForHeapStart();
+        gpuHandle = m_rastSrvUavDescHeap->GetGPUDescriptorHandleForHeapStart();
+        cpuHandle.ptr += g_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        gpuHandle.ptr += g_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    }
+    else {
+        descHeap = m_srvUavHeap;
+        cpuHandle = m_srvUavHeap->GetCPUDescriptorHandleForHeapStart();
+        gpuHandle = m_srvUavHeap->GetGPUDescriptorHandleForHeapStart();
+        cpuHandle.ptr += g_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        gpuHandle.ptr += g_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        cpuHandle.ptr += g_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        gpuHandle.ptr += g_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        cpuHandle.ptr += g_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        gpuHandle.ptr += g_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        cpuHandle.ptr += g_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        gpuHandle.ptr += g_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        cpuHandle.ptr += g_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        gpuHandle.ptr += g_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    }
+
+    
 
     // Setup Platform/Renderer backends
     ImGui_ImplWin32_Init(Win32Application::GetHwnd());
     ImGui_ImplDX12_Init(g_device.Get(), 2,
-        DXGI_FORMAT_R8G8B8A8_UNORM, m_rastSrvUavDescHeap.Get(),
+        DXGI_FORMAT_R8G8B8A8_UNORM, descHeap.Get(),
         cpuHandle,
         gpuHandle);
 
     m_imGuiParams = {};
-    m_imGuiParams.baseColor = ImVec4(0.82f, 0.67f, 0.16f, 1.f);
-    m_imGuiParams.metallic = 0.9f;
-    m_imGuiParams.subsurface = 1.0f;
-    m_imGuiParams.specular = 1.0f;
-    m_imGuiParams.roughness = 0.0f;
-    m_imGuiParams.specularTint = 0.0f;
-    m_imGuiParams.anisotropic = 0.0f;
-    m_imGuiParams.sheen = 1.0f;
-    m_imGuiParams.sheenTint = 0.5f;
-    m_imGuiParams.clearcoat = 0.0f;
-    m_imGuiParams.clearcoatGloss = 0.0f;
+
+    std::shared_ptr<DisneyMaterialParams> params = 
+        std::static_pointer_cast<DisneyMaterialParams>(m_armadilloMeshResource->GetMaterial()->GetMaterialParams());
+    m_imGuiParams.baseColor = ImVec4(params->baseColor.x, params->baseColor.y, params->baseColor.z, params->baseColor.w);
+    m_imGuiParams.metallic = params->metallic;
+    m_imGuiParams.subsurface = params->subsurface;
+    m_imGuiParams.specular = params->specular;
+    m_imGuiParams.roughness = params->roughness;
+    m_imGuiParams.specularTint = params->specularTint;
+    m_imGuiParams.anisotropic = params->anisotropic;
+    m_imGuiParams.sheen = params->sheen;
+    m_imGuiParams.sheenTint = params->sheenTint;
+    m_imGuiParams.clearcoat = params->clearcoat;
+    m_imGuiParams.clearcoatGloss = params->clearcoatGloss;
 }
 
 void D3DRTWindow::RenderImGui()
@@ -1247,18 +1288,46 @@ void D3DRTWindow::LoadMeshes()
     indices.clear();
 
     // Create plane mesh
-    ModelLoader::CreatePlane(vertices);
-    std::shared_ptr<Mesh> planeMesh = std::make_shared<Mesh>(vertices);
-    m_planeMeshResource = std::make_shared<MeshResource>(planeMesh, "plane");
+    DisneyMaterialParams planeMaterialParams = {};
+    planeMaterialParams.baseColor = XMFLOAT4(0.54f, 0.55f, 0.57f, 1.0f);
+    planeMaterialParams.metallic = 0.0f;
+    planeMaterialParams.subsurface = 0.0f;
+    planeMaterialParams.specular = 0.0f;
+    planeMaterialParams.roughness = 0.0f;
+    planeMaterialParams.specularTint = 0.0f;
+    planeMaterialParams.anisotropic = 0.0f;
+    planeMaterialParams.sheen = 0.0f;
+    planeMaterialParams.sheenTint = 0.0f;
+    planeMaterialParams.clearcoat = 0.0f;
+    planeMaterialParams.clearcoatGloss = 0.0f;
+
+    ModelLoader::CreatePlane(vertices, indices);
+    std::shared_ptr<Mesh> planeMesh = std::make_shared<Mesh>(vertices, indices);
+    std::shared_ptr<IMaterialResource> planeMaterial = std::make_shared<DisneyMaterialResource>(planeMaterialParams);
+    m_planeMeshResource = std::make_shared<MeshResource>(planeMesh, "plane", planeMaterial);
     m_planeMeshResource->UploadResource();
 
     vertices.clear();
     indices.clear();
 
     // Create menger mesh
+    DisneyMaterialParams mengerMaterialParams = {};
+    mengerMaterialParams.baseColor = XMFLOAT4(1.f, 0.07f, 0.16f, 1.0f);
+    mengerMaterialParams.metallic = 0.0f;
+    mengerMaterialParams.subsurface = 0.0f;
+    mengerMaterialParams.specular = 0.0f;
+    mengerMaterialParams.roughness = 0.0f;
+    mengerMaterialParams.specularTint = 0.0f;
+    mengerMaterialParams.anisotropic = 0.0f;
+    mengerMaterialParams.sheen = 0.0f;
+    mengerMaterialParams.sheenTint = 0.0f;
+    mengerMaterialParams.clearcoat = 0.0f;
+    mengerMaterialParams.clearcoatGloss = 0.0f;
+
     nv_helpers_dx12::GenerateMengerSponge(3, 0.75, vertices, indices);
     std::shared_ptr<Mesh> mengerMesh = std::make_shared<Mesh>(vertices, indices);
-    m_mengerMeshResource = std::make_shared<MeshResource>(mengerMesh, "menger");
+    std::shared_ptr<IMaterialResource> mengerMaterial = std::make_shared<DisneyMaterialResource>(mengerMaterialParams);
+    m_mengerMeshResource = std::make_shared<MeshResource>(mengerMesh, "menger", mengerMaterial);
     m_mengerMeshResource->UploadResource();
 
     vertices.clear();
@@ -1283,14 +1352,14 @@ void D3DRTWindow::LoadMeshes()
     // Load the armadillo model
     DisneyMaterialParams armadilloMaterialParams = {};
     armadilloMaterialParams.baseColor = XMFLOAT4(0.82f, 0.67f, 0.16f, 1.0f);
-    armadilloMaterialParams.metallic = 0.9f;
-    armadilloMaterialParams.subsurface = 1.0f;
-    armadilloMaterialParams.specular = 1.0f;
+    armadilloMaterialParams.metallic = 0.0f;
+    armadilloMaterialParams.subsurface = 0.0f;
+    armadilloMaterialParams.specular = 0.0f;
     armadilloMaterialParams.roughness = 0.0f;
     armadilloMaterialParams.specularTint = 0.0f;
     armadilloMaterialParams.anisotropic = 0.0f;
-    armadilloMaterialParams.sheen = 1.0f;
-    armadilloMaterialParams.sheenTint = 0.5f;
+    armadilloMaterialParams.sheen = 0.0f;
+    armadilloMaterialParams.sheenTint = 0.0f;
     armadilloMaterialParams.clearcoat = 0.0f;
     armadilloMaterialParams.clearcoatGloss = 0.0f;
 

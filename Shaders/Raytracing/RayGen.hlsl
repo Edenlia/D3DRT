@@ -1,6 +1,9 @@
 #include "Common.hlsl"
 #include "../Utils/Sampling.hlsl"
 
+#define NUM_SAMPLES 10
+#define NUM_RINGS 4 // Poisson disk'else ring count
+
 // Raytracing output texture, accessed as a UAV
 RWTexture2D< float4 > gOutput : register(u0);
 
@@ -116,5 +119,7 @@ export void RayGen() {
     
     float4 frameColor = frameTexture[launchIndex];
     
-    gOutput[launchIndex] = (frameColor * float(frameCount) + float4(color, 1.f)) / float(frameCount + 1);
+    // gOutput[launchIndex] = (frameColor * float(frameCount) + float4(color, 1.f)) / float(frameCount + 1);
+    gOutput[launchIndex] = float4(color, 1.f); // Disney cannot be used with temporal accumulation
+
 }
