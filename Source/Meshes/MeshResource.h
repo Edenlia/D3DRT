@@ -39,6 +39,7 @@ public:
 	const ComPtr<ID3D12Resource>& GetVertexBuffer() const { return m_vertexBuffer; }
 	const ComPtr<ID3D12Resource>& GetIndexBuffer() const { return m_indexBuffer; }
 	const ComPtr<ID3D12Resource>& GetWorldMatrixBuffer() const { return m_worldMatrixBuffer; }
+	const XMMATRIX& GetWorldMatrix() const { return m_worldMatrix; }
 	const std::shared_ptr<IMaterialResource>& GetMaterial() const { return m_material; }
 
 	const UINT GetVertexCount() const { return m_mesh->GetVertexCount(); }

@@ -148,5 +148,6 @@
     </FxCompile>
     <FxCompile Include="Shaders\Raytracing\ShadowRay.hlsl" />
     <FxCompile Include="Shaders\Utils\Sampling.hlsl" />
+    <FxCompile Include="Shaders\Utils\Math.hlsl" />
   </ItemGroup>
 </Project>

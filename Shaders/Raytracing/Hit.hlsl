@@ -40,6 +40,11 @@ float3 HitAttribute(float3 attrib[3], float3 barycentrics)
     return attrib[0] * barycentrics.x + attrib[1] * barycentrics.y + attrib[2] * barycentrics.z;
 }
 
+float2 HitAttribute2(float2 attrib[3], float3 barycentrics)
+{
+    return attrib[0] * barycentrics.x + attrib[1] * barycentrics.y + attrib[2] * barycentrics.z;
+}
+
 float SchlickFresnel(float u)
 {
     float m = clamp(1 - u, 0, 1);
@@ -77,7 +82,7 @@ float3 mon2lin(float3 x)
     return float3(pow(x[0], 2.2), pow(x[1], 2.2), pow(x[2], 2.2));
 }
 
-float3 Disney_BRDF(float3 L, float3 V, float3 N)
+float3 Disney_BRDF(float3 L, float3 V, float3 N, out float pdfL)
 {
     float NdotL = dot(N, L);
     float NdotV = dot(N, V);
@@ -129,6 +134,15 @@ float3 Disney_BRDF(float3 L, float3 V, float3 N)
     float3 Fsheen = FH * sheen * Csheen;
     L_diffuse += Fsheen;
     
+    // specular sampling test
+    float pdfH = Ds * NdotH;
+    pdfL = pdfH / (4.0 * LdotH);
+    // return L_specular;
+    
+    // diffuse sampling test
+    pdfL = NdotL / PI;
+    return L_diffuse;
+    
     return L_diffuse * (1.0 - metallic) + L_specular + L_clearcoat * 0.25 * clearcoat;
 }
 
@@ -138,16 +152,7 @@ export void ClosestHit(inout HitInfo payload, Attributes attrib)
     float3 barycentrics = float3(1.f - attrib.bary.x - attrib.bary.y, attrib.bary.x, attrib.bary.y);
     
     uint baseIndex = PrimitiveIndex() * 3;
-    
-    //uint indicesNum, indicesStride;
-    //indices.GetDimensions(indicesNum, indicesStride);
-    
-    //// No index buffer
-    //if (indicesNum == 0)
-    //{
-    //    baseIndex = PrimitiveIndex() * indices[3];
-    //}
-    
+        
     float3 vertexNormals[3] =
     {
         vertices[indices[baseIndex]].normal,
@@ -155,6 +160,32 @@ export void ClosestHit(inout HitInfo payload, Attributes attrib)
         vertices[indices[baseIndex + 2]].normal
     };
     float3 hitNormal = HitAttribute(vertexNormals, barycentrics);
+    
+    float3 vertexTangents[3] =
+    {
+        vertices[indices[baseIndex]].tangent,
+        vertices[indices[baseIndex + 1]].tangent,
+        vertices[indices[baseIndex + 2]].tangent
+    };
+    float3 hitTangent = HitAttribute(vertexTangents, barycentrics);
+    
+    float3 vertexBitangents[3] =
+    {
+        vertices[indices[baseIndex]].bitangent,
+        vertices[indices[baseIndex + 1]].bitangent,
+        vertices[indices[baseIndex + 2]].bitangent
+    };
+    float3 hitBitangent = HitAttribute(vertexBitangents, barycentrics);
+    
+    float2 vertexUVs[3] =
+    {
+        vertices[indices[baseIndex]].uv,
+        vertices[indices[baseIndex + 1]].uv,
+        vertices[indices[baseIndex + 2]].uv
+    };
+    float2 hitUV = HitAttribute2(vertexUVs, barycentrics);
+            
+    float3x3 TBN = transpose(float3x3(hitTangent, hitBitangent, hitNormal)); // each axis should be a column
     
     if (payload.depth < 4)
     {        
@@ -172,7 +203,12 @@ export void ClosestHit(inout HitInfo payload, Attributes attrib)
         
         for (uint i = 0; i < sampleCount; i++)
         {
-            float3 bounceDir = hemisphereSample(hitNormal, seeds[i]);
+            float3 wo = normalize(-WorldRayDirection());
+            float alpha = max(0.001, roughness * roughness);
+            
+            float3 bounceDir = hemisphereSample(TBN, seeds[i]);
+            bounceDir = cosineHemisphereSample(TBN, seeds[i]);
+            // bounceDir = GTR2Sample(TBN, seeds[i], alpha, wo);
             bounceDir = normalize(bounceDir);
         
             RayDesc ray;
@@ -185,11 +221,11 @@ export void ClosestHit(inout HitInfo payload, Attributes attrib)
             bouncePayload.depth = payload.depth + 1;
             
             float3 wi = bounceDir;
-            float3 wo = normalize(-WorldRayDirection());
             float3 n = hitNormal;
             float cosI = dot(hitNormal, bounceDir);
             float pdf = 1.0 / (2.0 * PI);
-            float3 brdf = Disney_BRDF(wi, wo, n);
+            
+            float3 brdf = Disney_BRDF(wi, wo, n, pdf);
             
             TraceRay(
             SceneBVH,
@@ -201,16 +237,17 @@ export void ClosestHit(inout HitInfo payload, Attributes attrib)
             ray,
             bouncePayload);
             
-            color += bouncePayload.colorAndDistance.xyz * brdf * cosI / pdf;
+            color += bouncePayload.color.xyz * brdf * cosI / pdf;
         }
         
         color /= sampleCount;
         
-        payload.colorAndDistance = float4(color, RayTCurrent());
+        payload.color = float4(color, 1);
+
     }
     else
     {
-        payload.colorAndDistance = float4(0, 0, 0, 0);
+        payload.color = float4(0, 0, 0, 1);
     }
 }
 
@@ -281,5 +318,5 @@ void PlaneClosestHit(inout HitInfo payload, Attributes attrib)
     float3 barycentrics =
       float3(1.f - attrib.bary.x - attrib.bary.y, attrib.bary.x, attrib.bary.y);
     float4 hitColor = float4(float3(0.7, 0.7, 0.3) * factor, RayTCurrent());
-    payload.colorAndDistance = float4(hitColor);
+    payload.color = hitColor;
 }

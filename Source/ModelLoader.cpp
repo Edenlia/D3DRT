@@ -52,15 +52,6 @@ void ModelLoader::LoadModel(const char* path, std::vector<Vertex>& vertices, std
 				indices.push_back(face.mIndices[k]);
 			}
 		}
-
-		XMFLOAT3 v1 = vertices[indices[0]].POSITION;
-		XMFLOAT3 v2 = vertices[indices[1]].POSITION;
-		XMFLOAT3 v3 = vertices[indices[2]].POSITION;
-		XMFLOAT3 n1 = vertices[indices[0]].NORMAL;
-		XMFLOAT3 n2 = vertices[indices[1]].NORMAL;
-		XMFLOAT3 n3 = vertices[indices[2]].NORMAL;
-
-		XMFLOAT3 cross1 = XMFLOAT3(v2.x - v1.x, v2.y - v1.y, v2.z - v1.z);
     }
 	
 }

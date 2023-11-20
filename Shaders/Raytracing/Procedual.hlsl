@@ -99,5 +99,5 @@ void SphereClosestHit(inout HitInfo payload, ProcedualGeometryAttributes attrib)
 {
     float3 hitColor = float3(1.0, 0.0, 0.0);
     
-    payload.colorAndDistance = float4(hitColor, RayTCurrent());
+    payload.color = float4(hitColor, 1);
 }

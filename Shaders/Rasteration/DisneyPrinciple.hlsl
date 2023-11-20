@@ -191,7 +191,7 @@ PSInput VSMain(VSInput input)
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
-    float3 lightPos = float3(1.0, 0.0, 1.0);
+    float3 lightPos = float3(1.0, 1.0, 1.0);
     float3 lightIntensity = float3(15.0, 15.0, 15.0);
     float r2 = dot(lightPos - input.worldPosition.xyz, lightPos - input.worldPosition.xyz);
     

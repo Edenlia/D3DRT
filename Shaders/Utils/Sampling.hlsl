@@ -1,7 +1,7 @@
+#include "Math.hlsl"
+
 #define PI 3.141592653589793
 #define PI2 6.283185307179586
-#define NUM_SAMPLES 4
-#define NUM_RINGS 5 // Poisson disk'else ring count
 
 float rand_1to1(float x)
 {
@@ -15,24 +15,6 @@ float rand_2to1(float2 uv)
     const float a = 12.9898, b = 78.233, c = 43758.5453;
     float dt = dot(uv.xy, float2(a, b)), sn = fmod(dt, PI);
     return frac(sin(sn) * c);
-}
-
-void poissonDiskSamples(const in float2 randomSeed, inout float2 poissonDisk[])
-{
-
-    float ANGLE_STEP = PI2 * float(NUM_RINGS) / float(NUM_SAMPLES);
-    float INV_NUM_SAMPLES = 1.0 / float(NUM_SAMPLES);
-
-    float angle = rand_2to1(randomSeed) * PI2;
-    float radius = INV_NUM_SAMPLES;
-    float radiusStep = radius;
-
-    for (int i = 0; i < NUM_SAMPLES; i++)
-    {
-        poissonDisk[i] = float2(cos(angle), sin(angle)) * pow(radius, 0.75);
-        radius += radiusStep;
-        angle += ANGLE_STEP;
-    }
 }
 
 float2 randomSeed(const in float2 uv)
@@ -50,9 +32,46 @@ float3 sphereSample(const in float2 seed)
     return float3(x, y, z);
 }
 
-float3 hemisphereSample(const in float3 normal, const in float2 seed)
+float3 toNormalHemisphere(float3 v, const in float3x3 TBN)
+{
+    return normalize(mul(TBN, v));
+}
+
+float3 hemisphereSample(const in float3x3 TBN, const in float2 seed)
 {
     float3 sample = sphereSample(seed);
+    if (sample.z < 0.0)
+    {
+        sample.z *= -1.0;
+    }
     
-    return dot(normal, sample) < 0 ? -sample : sample;
+    return toNormalHemisphere(sample, TBN);
+}
+
+// https://www.pbr-book.org/3ed-2018/Monte_Carlo_Integration/2D_Sampling_with_Multidimensional_Transformations#Cosine-WeightedHemisphereSampling
+float3 cosineHemisphereSample(const in float3x3 TBN, const in float2 seed)
+{
+    float r = sqrt(seed.x);
+    float theta = seed.y * 2.0 * PI;
+    float x = r * cos(theta);
+    float y = r * sin(theta);
+    float z = sqrt(1.0 - x * x - y * y);
+    
+    return toNormalHemisphere(float3(x, y, z), TBN);
+}
+
+float3 GTR2Sample(const in float3x3 TBN, const in float2 seed, const in float alpha, const in float3 V)
+{
+    float phi_h = 2.0 * PI * seed.x;
+    float sin_phi_h = sin(phi_h);
+    float cos_phi_h = cos(phi_h);
+
+    float cos_theta_h = sqrt((1.0 - seed.y) / (1.0 + (alpha * alpha - 1.0) * seed.y));
+    float sin_theta_h = sqrt(max(0.0, 1.0 - cos_theta_h * cos_theta_h));
+    
+    float3 H = float3(sin_theta_h * cos_phi_h, sin_theta_h * sin_phi_h, cos_theta_h);
+    H = toNormalHemisphere(H, TBN);
+    
+    return reflect(V, H);
+
 }

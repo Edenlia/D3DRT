@@ -1,7 +1,9 @@
 #include "Common.hlsl"
 #include "../Utils/Sampling.hlsl"
 
-#define NUM_SAMPLES 10
+#define RAY_DEPTH 4
+#define RAY_NUM 2
+#define NUM_SAMPLES 2
 #define NUM_RINGS 4 // Poisson disk'else ring count
 
 // Raytracing output texture, accessed as a UAV
@@ -26,11 +28,28 @@ cbuffer GlobalParams : register(b1)
     uint frameCount;
 }
 
+void poissonDiskSamples(const in float2 randomSeed, inout float2 poissonDisk[])
+{
+
+    float ANGLE_STEP = PI2 * float(NUM_RINGS) / float(NUM_SAMPLES);
+    float INV_NUM_SAMPLES = 1.0 / float(NUM_SAMPLES);
+
+    float angle = rand_2to1(randomSeed) * PI2;
+    float radius = INV_NUM_SAMPLES;
+    float radiusStep = radius;
+
+    for (int i = 0; i < NUM_SAMPLES; i++)
+    {
+        poissonDisk[i] = float2(cos(angle), sin(angle)) * pow(radius, 0.75);
+        radius += radiusStep;
+        angle += ANGLE_STEP;
+    }
+}
+
 [shader("raygeneration")] 
 export void RayGen() {
     // Initialize the ray payload
     HitInfo payload;
-    payload.colorAndDistance = float4(0, 0, 0, 0);
     payload.depth = 0;
 
     // Get the location within the dispatched 2D grid of work items
@@ -42,12 +61,10 @@ export void RayGen() {
     float aspectRatio = dims.x / dims.y;
     
     float2 uv = (launchIndex.xy + 0.5f) / dims.xy;
-    
-    float2 seed = uv;
-    
+        
     float2 poissonDisk[NUM_SAMPLES];
     
-    poissonDiskSamples(seed, poissonDisk);
+    poissonDiskSamples(uv, poissonDisk);
     
     float3 color = float3(0, 0, 0);
     
@@ -57,11 +74,14 @@ export void RayGen() {
         float2 d = (((launchIndex.xy + 0.5f + poissonDisk[i]) / dims.xy) * 2.f - 1.f);
         // Perspective
         RayDesc ray;
-        ray.Origin = mul(viewI, float4(0, 0, 0, 1)); // World space origin
+        ray.Origin = mul(viewI, float4(0, 0, 0, 1)).xyz; // World space origin
         float4 dir = mul(projectionI, float4(d.x, -d.y, 1, 1)); // NDC space direction to world space. d.y is flipped screen space left top origin, ndc is left bottom origin
-        ray.Direction = mul(viewI, float4(dir.xyz, 0));
+        ray.Direction = mul(viewI, float4(dir.xyz, 0)).xyz;
         ray.TMin = 0;
         ray.TMax = 100000;
+        
+        float3 rayColor = float3(1, 1, 1);
+        float3 L_o = float3(0, 0, 0);
         
         // Trace the ray
         TraceRay(
@@ -111,7 +131,7 @@ export void RayGen() {
         // shaders and the raygen
         payload);
         
-        color += payload.colorAndDistance.rgb;
+        color += payload.color.xyz;
         
     }
     

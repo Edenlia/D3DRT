@@ -15,7 +15,7 @@ struct Vertex
 
 struct HitInfo
 {
-    float4 colorAndDistance;
+    float4 color;
     float3 normal;
     uint depth;
 };

@@ -693,10 +693,10 @@ void D3DRTWindow::CreateShaderBindingTable()
     // menger sponge fractal
     m_sbtHelper.AddHitGroup(L"HitGroup", {
         (void*)(m_rayTracingGlobalConstantBuffer->GetGPUVirtualAddress()),
-        (void*)(m_mengerMeshResource->GetVertexBuffer()->GetGPUVirtualAddress()),
-        (void*)(m_mengerMeshResource->GetIndexBuffer()->GetGPUVirtualAddress()),
+        (void*)(m_dragonMeshResource->GetVertexBuffer()->GetGPUVirtualAddress()),
+        (void*)(m_dragonMeshResource->GetIndexBuffer()->GetGPUVirtualAddress()),
         heapPointer,
-        (void*)(m_mengerMeshResource->GetMaterial()->GetMaterialBuffer()->GetGPUVirtualAddress())
+        (void*)(m_dragonMeshResource->GetMaterial()->GetMaterialBuffer()->GetGPUVirtualAddress())
         });
 
 
@@ -789,10 +789,10 @@ void D3DRTWindow::CreateAccelerationStructures()
      //Build the bottom AS from the Menger Sponge vertex buffer
      //#DXR Extra: Indexed Geometry
      //Build the bottom AS from the Menger Sponge vertex buffer
-    AccelerationStructureBuffers mengerBottomLevelBuffers =
+    AccelerationStructureBuffers dragonBottomLevelBuffers =
         CreateBottomLevelAS(
-            { {m_mengerMeshResource->GetVertexBuffer().Get(), m_mengerMeshResource->GetVertexCount()}},
-            { {m_mengerMeshResource->GetIndexBuffer().Get(), m_mengerMeshResource->GetIndexCount()}});
+            { {m_dragonMeshResource->GetVertexBuffer().Get(), m_dragonMeshResource->GetVertexCount()}},
+            { {m_dragonMeshResource->GetIndexBuffer().Get(), m_dragonMeshResource->GetIndexCount()}});
 
      //AccelerationStructureBuffers sphereBottomLevelBuffers = CreateAABBBottomLevelAS();
 
@@ -802,8 +802,8 @@ void D3DRTWindow::CreateAccelerationStructures()
         {bottomLevelBuffers.pResult, XMMatrixScaling(0.008f, 0.008f, 0.008f) * XMMatrixIdentity()},
         {bottomLevelBuffers.pResult, XMMatrixScaling(0.008f, 0.008f, 0.008f) * XMMatrixTranslation(-1.f, 0, 0)},
         {bottomLevelBuffers.pResult, XMMatrixScaling(0.008f, 0.008f, 0.008f) * XMMatrixTranslation(1.f, 0, 0)},
-        {planeBottomLevelBuffers.pResult, XMMatrixTranslation(0, -.3, 0) },
-        {mengerBottomLevelBuffers.pResult, XMMatrixTranslation(0, 0, 1.0f) /*add merger sponge*/},
+        {planeBottomLevelBuffers.pResult, XMMatrixTranslation(0, 0, 0) },
+        {dragonBottomLevelBuffers.pResult, m_dragonMeshResource->GetWorldMatrix()},
     };
     CreateTopLevelAS(m_instances);
 
@@ -977,7 +977,7 @@ void D3DRTWindow::CreateRaytracingPipeline() {
     // exchanged between shaders, such as the HitInfo structure in the HLSL code.
     // It is important to keep this value as low as possible as a too high value
     // would result in unnecessary memory consumption and cache trashing.
-    pipeline.SetMaxPayloadSize(7 * sizeof(float) + sizeof(UINT)); // RGB + distance + normal + depth
+    pipeline.SetMaxPayloadSize(29 * sizeof(float) + sizeof(UINT)); // RGB + distance + normal + depth + material info + world position
 
     // Upon hitting a surface, DXR can provide several attributes to the hit. In
     // our sample we just use the barycentric coordinates defined by the weights
@@ -1290,10 +1290,10 @@ void D3DRTWindow::LoadMeshes()
     // Create plane mesh
     DisneyMaterialParams planeMaterialParams = {};
     planeMaterialParams.baseColor = XMFLOAT4(0.54f, 0.55f, 0.57f, 1.0f);
-    planeMaterialParams.metallic = 0.0f;
+    planeMaterialParams.metallic = 0.8f;
     planeMaterialParams.subsurface = 0.0f;
     planeMaterialParams.specular = 0.0f;
-    planeMaterialParams.roughness = 0.0f;
+    planeMaterialParams.roughness = 1.0f;
     planeMaterialParams.specularTint = 0.0f;
     planeMaterialParams.anisotropic = 0.0f;
     planeMaterialParams.sheen = 0.0f;
@@ -1334,15 +1334,27 @@ void D3DRTWindow::LoadMeshes()
     indices.clear();
 
     // Load the dragon model
-    PhongMaterialParams dragonMaterialParams = {};
-    dragonMaterialParams.kd = XMFLOAT4(0.82f, 0.07f, 0.16f, 1.0f);
-    dragonMaterialParams.ka = XMFLOAT4(0.001f, 0.001f, 0.001f, 1.f);
-    dragonMaterialParams.ks = XMFLOAT4(0.7937f, 0.7937f, 0.7937f, 1.f);
-
+    //PhongMaterialParams dragonMaterialParams = {};
+    //dragonMaterialParams.kd = XMFLOAT4(0.82f, 0.07f, 0.16f, 1.0f);
+    //dragonMaterialParams.ka = XMFLOAT4(0.001f, 0.001f, 0.001f, 1.f);
+    //dragonMaterialParams.ks = XMFLOAT4(0.7937f, 0.7937f, 0.7937f, 1.f);
     ModelLoader::LoadModel("Models/stanford-dragon-pbr/model.dae", vertices, indices);
+    DisneyMaterialParams dragonMaterialParams = {};
+    dragonMaterialParams.baseColor = XMFLOAT4(1.f, 0.07f, 0.16f, 1.0f);
+    dragonMaterialParams.metallic = 0.8f;
+    dragonMaterialParams.subsurface = 0.0f;
+    dragonMaterialParams.specular = 0.0f;
+    dragonMaterialParams.roughness = 0.25f;
+    dragonMaterialParams.specularTint = 0.0f;
+    dragonMaterialParams.anisotropic = 0.0f;
+    dragonMaterialParams.sheen = 0.0f;
+    dragonMaterialParams.sheenTint = 0.0f;
+    dragonMaterialParams.clearcoat = 0.0f;
+    dragonMaterialParams.clearcoatGloss = 0.0f;
+
     std::shared_ptr<Mesh> dragonMesh = std::make_shared<Mesh>(vertices, indices);
-    XMMATRIX dragonTransform = XMMatrixScaling(0.008f, 0.008f, 0.008f) * XMMatrixTranslation(1, 0, 0);
-    std::shared_ptr<IMaterialResource> dragonMaterial = std::make_shared<PhongMaterialResource>(dragonMaterialParams);
+    XMMATRIX dragonTransform = XMMatrixScaling(0.008f, 0.008f, 0.008f) * XMMatrixTranslation(0, 0, 1);
+    std::shared_ptr<IMaterialResource> dragonMaterial = std::make_shared<DisneyMaterialResource>(dragonMaterialParams);
     m_dragonMeshResource = std::make_shared<MeshResource>(dragonMesh, "dragon", dragonMaterial, dragonTransform);
     m_dragonMeshResource->UploadResource();
 
@@ -1352,10 +1364,10 @@ void D3DRTWindow::LoadMeshes()
     // Load the armadillo model
     DisneyMaterialParams armadilloMaterialParams = {};
     armadilloMaterialParams.baseColor = XMFLOAT4(0.82f, 0.67f, 0.16f, 1.0f);
-    armadilloMaterialParams.metallic = 0.0f;
+    armadilloMaterialParams.metallic = 0.8f;
     armadilloMaterialParams.subsurface = 0.0f;
-    armadilloMaterialParams.specular = 0.0f;
-    armadilloMaterialParams.roughness = 0.0f;
+    armadilloMaterialParams.specular = 0.3f;
+    armadilloMaterialParams.roughness = 0.25f;
     armadilloMaterialParams.specularTint = 0.0f;
     armadilloMaterialParams.anisotropic = 0.0f;
     armadilloMaterialParams.sheen = 0.0f;
