@@ -1290,10 +1290,10 @@ void D3DRTWindow::LoadMeshes()
     // Create plane mesh
     DisneyMaterialParams planeMaterialParams = {};
     planeMaterialParams.baseColor = XMFLOAT4(0.54f, 0.55f, 0.57f, 1.0f);
-    planeMaterialParams.metallic = 0.8f;
+    planeMaterialParams.metallic = 0.9f;
     planeMaterialParams.subsurface = 0.0f;
     planeMaterialParams.specular = 0.0f;
-    planeMaterialParams.roughness = 1.0f;
+    planeMaterialParams.roughness = 0.2f;
     planeMaterialParams.specularTint = 0.0f;
     planeMaterialParams.anisotropic = 0.0f;
     planeMaterialParams.sheen = 0.0f;
@@ -1341,10 +1341,10 @@ void D3DRTWindow::LoadMeshes()
     ModelLoader::LoadModel("Models/stanford-dragon-pbr/model.dae", vertices, indices);
     DisneyMaterialParams dragonMaterialParams = {};
     dragonMaterialParams.baseColor = XMFLOAT4(1.f, 0.07f, 0.16f, 1.0f);
-    dragonMaterialParams.metallic = 0.8f;
+    dragonMaterialParams.metallic = 0.9f;
     dragonMaterialParams.subsurface = 0.0f;
     dragonMaterialParams.specular = 0.0f;
-    dragonMaterialParams.roughness = 0.25f;
+    dragonMaterialParams.roughness = 0.1f;
     dragonMaterialParams.specularTint = 0.0f;
     dragonMaterialParams.anisotropic = 0.0f;
     dragonMaterialParams.sheen = 0.0f;
@@ -1353,7 +1353,7 @@ void D3DRTWindow::LoadMeshes()
     dragonMaterialParams.clearcoatGloss = 0.0f;
 
     std::shared_ptr<Mesh> dragonMesh = std::make_shared<Mesh>(vertices, indices);
-    XMMATRIX dragonTransform = XMMatrixScaling(0.008f, 0.008f, 0.008f) * XMMatrixTranslation(0, 0, 1);
+    XMMATRIX dragonTransform = XMMatrixScaling(0.008f, 0.008f, 0.008f) * XMMatrixTranslation(0, 0, .6);
     std::shared_ptr<IMaterialResource> dragonMaterial = std::make_shared<DisneyMaterialResource>(dragonMaterialParams);
     m_dragonMeshResource = std::make_shared<MeshResource>(dragonMesh, "dragon", dragonMaterial, dragonTransform);
     m_dragonMeshResource->UploadResource();

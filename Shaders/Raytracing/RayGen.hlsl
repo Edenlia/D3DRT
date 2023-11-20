@@ -5,6 +5,7 @@
 #define RAY_NUM 2
 #define NUM_SAMPLES 2
 #define NUM_RINGS 4 // Poisson disk'else ring count
+#define SSP_MAX 1e10
 
 // Raytracing output texture, accessed as a UAV
 RWTexture2D< float4 > gOutput : register(u0);
@@ -126,7 +127,18 @@ export void RayGen() {
     
     float4 frameColor = frameTexture[launchIndex];
     
-    gOutput[launchIndex] = (frameColor * float(frameCount) + float4(color, 1.f)) / float(frameCount + 1);
-    // gOutput[launchIndex] = float4(color, 1.f); // Disney cannot be used with temporal accumulation
+    if (frameCount < SSP_MAX)
+    {
+        gOutput[launchIndex] = (frameColor * float(frameCount) + float4(color, 1.f)) / float(frameCount + 1);
+    }
+    else
+    {
+        gOutput[launchIndex] = frameColor;
+    }
+    
+    if (SSP_MAX == 0)
+    {
+        gOutput[launchIndex] = float4(color, 1.f);
+    }
 
 }

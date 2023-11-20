@@ -153,10 +153,64 @@ float3 Disney_BRDF(float3 L, float3 V, float3 N, float3 X, float3 Y)
     float Dr = GTR1(NdotH, lerp(.1, .001, clearcoatGloss));
     float Fr = lerp(.04, 1.0, FH);
     float Gr = smithG_GGX(NdotL, .25) * smithG_GGX(NdotV, .25);
-
+            
     return ((1 / PI) * lerp(Fd, ss, subsurface) * Cdlin + Fsheen)
         * (1 - metallic)
         + Gs * Fs * Ds + .25 * clearcoat * Gr * Fr * Dr;
+}
+
+// Without anisotropic
+float3 Disney_BRDF_NO_ANIS(float3 L, float3 V, float3 N)
+{
+    float NdotL = dot(N, L);
+    float NdotV = dot(N, V);
+    if (NdotL < 0 || NdotV < 0)
+        return float3(0, 0, 0);
+
+    float3 H = normalize(L + V);
+    float NdotH = dot(N, H);
+    float LdotH = dot(L, H);
+    
+    float3 Cdlin = mon2lin(baseColor.xyz); // mon2lin(baseColor.xyz);
+    float Cdlum = .3 * Cdlin.x + .6 * Cdlin.y + .1 * Cdlin.z; // luminance approx.
+    float3 Ctint = Cdlum > 0 ? Cdlin / Cdlum : float3(1, 1, 1); // normalize lum. to isolate hue+sat
+    
+    
+    float FL = SchlickFresnel(NdotL);
+    float FV = SchlickFresnel(NdotV);
+    float Fd90 = 0.5 + 2 * LdotH * LdotH * roughness;
+    float Fd = lerp(1.0, Fd90, FL) * lerp(1.0, Fd90, FV);
+    
+    // subsurface scattering
+    float Fss90 = LdotH * LdotH * roughness;
+    float Fss = lerp(1.0, Fss90, FL) * lerp(1.0, Fss90, FV);
+    float ss = 1.25 * (Fss * (1.0 / (NdotL + NdotV) - 0.5) + 0.5);
+    
+    float3 L_diffuse = lerp(Fd, ss, subsurface) * Cdlin / PI;
+    
+    float3 Cspec = specular * lerp(float3(1, 1, 1), Ctint, specularTint);
+    float3 Cspec0 = lerp(0.08 * Cspec, Cdlin, metallic);
+    
+    // Specular
+    float alpha = max(0.001, roughness * roughness);
+    float Ds = GTR2(NdotH, alpha);
+    float FH = SchlickFresnel(LdotH);
+    float3 Fs = lerp(Cspec0, float3(1, 1, 1), FH);
+    float Gs = smithG_GGX(NdotL, roughness) * smithG_GGX(NdotV, roughness);
+    float3 L_specular = Ds * Fs * Gs; // don't need to / (4 * NdotL * NdotV)
+    
+    // Clearcoat
+    float Dr = GTR1(NdotH, lerp(0.1, 0.001, clearcoatGloss));
+    float Fr = lerp(0.04, 1.0, FH);
+    float Gr = smithG_GGX(NdotL, 0.25) * smithG_GGX(NdotV, 0.25);
+    float3 L_clearcoat = Dr * Fr * Gr;
+    
+    // Sheen
+    float3 Csheen = lerp(float3(1, 1, 1), Ctint, sheenTint);
+    float3 Fsheen = FH * sheen * Csheen;
+    L_diffuse += Fsheen;
+    
+    return L_diffuse * (1.0 - metallic) + L_specular + L_clearcoat * 0.25 * clearcoat;
 }
 
 PSInput VSMain(VSInput input)
@@ -201,7 +255,17 @@ float4 PSMain(PSInput input) : SV_TARGET
     float3 x = normalize(input.tangent);
     float3 y = normalize(input.bitangent);
     
-    float3 brdf = Disney_BRDF(wi, wo, n, x, y);
+    float3 brdf;
+    
+    // TODO: Why the ndcPosition.x not in range [0, 1]?
+    if (input.ndcPosition.x < 700)
+    {
+        brdf = Disney_BRDF(wi, wo, n, x, y);
+    }
+    else
+    {
+        brdf = Disney_BRDF_NO_ANIS(wi, wo, n);
+    }
     
     float3 color = brdf * lightIntensity * max(0, dot(n, wi)) / r2;
     // float3 color = brdf * max(0, dot(n, wi));

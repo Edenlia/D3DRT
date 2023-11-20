@@ -82,7 +82,60 @@ float3 mon2lin(float3 x)
     return float3(pow(x[0], 2.2), pow(x[1], 2.2), pow(x[2], 2.2));
 }
 
-float3 Disney_BRDF(float3 L, float3 V, float3 N, out float pdfL)
+// seed for sample
+// seed1 for choose diffuse or specular or clearcoat
+float3 Disney_BRDF_Sample(float2 seed, float seed1, float3 V, float3 N, float3 T, float3 B, out float pdf)
+{
+    float alpha_GTR1 = lerp(0.1, 0.001, clearcoatGloss);
+    float alpha_GTR2 = max(0.001, roughness * roughness);
+    
+    float r_diffuse = (1.0 - metallic);
+    float r_specular = 1.;
+    float r_clearcoat = 0.25 * clearcoat;
+    float r_sum = r_diffuse + r_specular + r_clearcoat;
+
+    float p_diffuse = r_diffuse / r_sum;
+    float p_specular = r_specular / r_sum;
+    float p_clearcoat = r_clearcoat / r_sum;
+    
+    float3x3 TBN = transpose(float3x3(T, B, N));
+    
+    float3 L;
+    
+    if (seed1 <= p_diffuse)
+    {
+        L = cosineHemisphereSample(TBN, seed);
+    }
+    else if (seed1 <= p_diffuse + p_specular)
+    {
+        L = GTR2Sample(TBN, seed, alpha_GTR2, V);
+    }
+    else
+    {
+        L = GTR1Sample(TBN, seed, alpha_GTR1, V);
+    }
+    
+    float NdotL = dot(N, L);
+    float NdotV = dot(N, V);
+    float3 H = normalize(L + V);
+    float NdotH = dot(N, H);
+    float LdotH = dot(L, H);
+    
+    float Ds = GTR2(NdotH, alpha_GTR2);
+    float Dr = GTR1(NdotH, alpha_GTR1);
+    
+    float pdf_diffuse = NdotL / PI;
+    float pdf_specular = (Ds * NdotH) / (4.0 * LdotH);
+    float pdf_clearcoat = (Dr * NdotH) / (4.0 * LdotH);
+    
+    pdf = p_diffuse * pdf_diffuse + p_specular * pdf_specular + p_clearcoat * pdf_clearcoat;
+    
+    pdf = max(1e-10, pdf);
+    
+    return L;
+}
+
+float3 Disney_BRDF(float3 L, float3 V, float3 N)
 {
     float NdotL = dot(N, L);
     float NdotV = dot(N, V);
@@ -100,7 +153,7 @@ float3 Disney_BRDF(float3 L, float3 V, float3 N, out float pdfL)
     
     float FL = SchlickFresnel(NdotL);
     float FV = SchlickFresnel(NdotV);
-    float Fd90 = 0.5 + 2 * NdotH * NdotH * roughness;
+    float Fd90 = 0.5 + 2 * LdotH * LdotH * roughness;
     float Fd = lerp(1.0, Fd90, FL) * lerp(1.0, Fd90, FV);
     
     // subsurface scattering
@@ -133,16 +186,7 @@ float3 Disney_BRDF(float3 L, float3 V, float3 N, out float pdfL)
     float3 Csheen = lerp(float3(1, 1, 1), Ctint, sheenTint);
     float3 Fsheen = FH * sheen * Csheen;
     L_diffuse += Fsheen;
-    
-    // specular sampling test
-    float pdfH = Ds * NdotH;
-    pdfL = pdfH / (4.0 * LdotH);
-    // return L_specular;
-    
-    // diffuse sampling test
-    pdfL = NdotL / PI;
-    return L_diffuse;
-    
+        
     return L_diffuse * (1.0 - metallic) + L_specular + L_clearcoat * 0.25 * clearcoat;
 }
 
@@ -194,7 +238,8 @@ export void ClosestHit(inout HitInfo payload, Attributes attrib)
         
         float2 seed;
         
-        if (launchIndex.x < dims.x / 2)
+        // left half of the screen: random seed, right half of the screen: sobol seed
+        if (launchIndex.y < dims.y / 2)
         {
             seed = float2(attrib.bary.x + ObjectRayDirection().x, attrib.bary.y + ObjectRayDirection().y);
             seed *= frameCount + 1;
@@ -206,15 +251,39 @@ export void ClosestHit(inout HitInfo payload, Attributes attrib)
             seed = CranleyPattersonRotation(seed, launchIndex);
         }
         
+        float3 bounceDir;
         float3 color = float3(0, 0, 0);
+        float pdf;
+        float3 brdf;
+        float cosI;
         
-        float3 wo = normalize(-WorldRayDirection());
-        float alpha = max(0.001, roughness * roughness);
+        // top half of the screen: hemisphere sample, bottom half of the screen: importance sample
+        if (launchIndex.x < dims.x / 2)
+        {
+            bounceDir = normalize(hemisphereSample(TBN, seed));
             
-        float3 bounceDir = hemisphereSample(TBN, seed);
-        // bounceDir = cosineHemisphereSample(TBN, seed);
-        // bounceDir = GTR2Sample(TBN, seeds[i], alpha, wo);
-        bounceDir = normalize(bounceDir);
+            float3 wi = bounceDir;
+            float3 wo = normalize(-WorldRayDirection());
+            float3 n = hitNormal;
+            cosI = dot(hitNormal, bounceDir);
+            pdf = 1.0 / (2.0 * PI);
+            
+            brdf = Disney_BRDF(wi, wo, n);
+        }
+        else
+        {
+            float3 wo = normalize(-WorldRayDirection());
+                        
+            float seed1 = rand_2to1(seed);
+            // seed1 = 0.1;
+            bounceDir = Disney_BRDF_Sample(seed, seed1, wo, hitNormal, hitTangent, hitBitangent, pdf);
+            
+            float3 wi = bounceDir;
+            float3 n = hitNormal;
+            cosI = dot(hitNormal, bounceDir);
+            
+            brdf = Disney_BRDF(wi, wo, n);
+        }
         
         RayDesc ray;
         ray.Origin = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
@@ -225,14 +294,6 @@ export void ClosestHit(inout HitInfo payload, Attributes attrib)
         HitInfo bouncePayload;
         bouncePayload.depth = payload.depth + 1;
             
-        float3 wi = bounceDir;
-        float3 n = hitNormal;
-        float cosI = dot(hitNormal, bounceDir);
-        float pdf = 1.0 / (2.0 * PI);
-        float a = 0;
-            
-        float3 brdf = Disney_BRDF(wi, wo, n, a);
-            
         TraceRay(
         SceneBVH,
         RAY_FLAG_NONE,
@@ -242,7 +303,7 @@ export void ClosestHit(inout HitInfo payload, Attributes attrib)
         0,
         ray,
         bouncePayload);
-            
+                    
         color += bouncePayload.color.xyz * brdf * cosI / pdf;
         
         

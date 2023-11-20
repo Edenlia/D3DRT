@@ -116,6 +116,21 @@ float3 GTR2Sample(const in float3x3 TBN, const in float2 seed, const in float al
     float3 H = float3(sin_theta_h * cos_phi_h, sin_theta_h * sin_phi_h, cos_theta_h);
     H = toNormalHemisphere(H, TBN);
     
-    return reflect(V, H);
+    return reflect(-V, H);
+}
+
+float3 GTR1Sample(const in float3x3 TBN, const in float2 seed, const in float alpha, const in float3 V)
+{
+    float phi_h = 2.0 * PI * seed.x;
+    float sin_phi_h = sin(phi_h);
+    float cos_phi_h = cos(phi_h);
+
+    float cos_theta_h = sqrt((1.0 - pow(alpha * alpha, 1.0 - seed.y)) / (1.0 - alpha * alpha));
+    float sin_theta_h = sqrt(max(0.0, 1.0 - cos_theta_h * cos_theta_h));
+    
+    float3 H = float3(sin_theta_h * cos_phi_h, sin_theta_h * sin_phi_h, cos_theta_h);
+    H = toNormalHemisphere(H, TBN);
+    
+    return reflect(-V, H);
 
 }
