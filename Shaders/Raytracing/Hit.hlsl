@@ -189,58 +189,62 @@ export void ClosestHit(inout HitInfo payload, Attributes attrib)
     
     if (payload.depth < 4)
     {        
-        uint sampleCount = 4;
-        float2 seed = float2(attrib.bary.x + ObjectRayDirection().x, attrib.bary.y + ObjectRayDirection().y);
-        seed *= frameCount + 1;
-        float2 seeds[4];
+        uint2 launchIndex = DispatchRaysIndex().xy; // pixel coordinate [0, 1920), [0, 1080)
+        float2 dims = float2(DispatchRaysDimensions().xy); // resolution: 1920x1080
         
-        seeds[0] = randomSeed(seed);
-        seeds[1] = randomSeed(seeds[0]);
-        seeds[2] = randomSeed(seeds[1]);
-        seeds[3] = randomSeed(seeds[2]);
+        float2 seed;
+        
+        if (launchIndex.x < dims.x / 2)
+        {
+            seed = float2(attrib.bary.x + ObjectRayDirection().x, attrib.bary.y + ObjectRayDirection().y);
+            seed *= frameCount + 1;
+            seed = randomSeed(seed);
+        }
+        else
+        {
+            seed = sobolSeed(frameCount, payload.depth);
+            seed = CranleyPattersonRotation(seed, launchIndex);
+        }
         
         float3 color = float3(0, 0, 0);
         
-        for (uint i = 0; i < sampleCount; i++)
-        {
-            float3 wo = normalize(-WorldRayDirection());
-            float alpha = max(0.001, roughness * roughness);
+        float3 wo = normalize(-WorldRayDirection());
+        float alpha = max(0.001, roughness * roughness);
             
-            float3 bounceDir = hemisphereSample(TBN, seeds[i]);
-            bounceDir = cosineHemisphereSample(TBN, seeds[i]);
-            // bounceDir = GTR2Sample(TBN, seeds[i], alpha, wo);
-            bounceDir = normalize(bounceDir);
+        float3 bounceDir = hemisphereSample(TBN, seed);
+        // bounceDir = cosineHemisphereSample(TBN, seed);
+        // bounceDir = GTR2Sample(TBN, seeds[i], alpha, wo);
+        bounceDir = normalize(bounceDir);
         
-            RayDesc ray;
-            ray.Origin = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
-            ray.Direction = bounceDir;
-            ray.TMin = 0.01;
-            ray.TMax = 1000;
+        RayDesc ray;
+        ray.Origin = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
+        ray.Direction = bounceDir;
+        ray.TMin = 0.01;
+        ray.TMax = 1000;
         
-            HitInfo bouncePayload;
-            bouncePayload.depth = payload.depth + 1;
+        HitInfo bouncePayload;
+        bouncePayload.depth = payload.depth + 1;
             
-            float3 wi = bounceDir;
-            float3 n = hitNormal;
-            float cosI = dot(hitNormal, bounceDir);
-            float pdf = 1.0 / (2.0 * PI);
+        float3 wi = bounceDir;
+        float3 n = hitNormal;
+        float cosI = dot(hitNormal, bounceDir);
+        float pdf = 1.0 / (2.0 * PI);
+        float a = 0;
             
-            float3 brdf = Disney_BRDF(wi, wo, n, pdf);
+        float3 brdf = Disney_BRDF(wi, wo, n, a);
             
-            TraceRay(
-            SceneBVH,
-            RAY_FLAG_NONE,
-            0xFF,
-            0,
-            0,
-            0,
-            ray,
-            bouncePayload);
+        TraceRay(
+        SceneBVH,
+        RAY_FLAG_NONE,
+        0xFF,
+        0,
+        0,
+        0,
+        ray,
+        bouncePayload);
             
-            color += bouncePayload.color.xyz * brdf * cosI / pdf;
-        }
+        color += bouncePayload.color.xyz * brdf * cosI / pdf;
         
-        color /= sampleCount;
         
         payload.color = float4(color, 1);
 

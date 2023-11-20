@@ -977,7 +977,7 @@ void D3DRTWindow::CreateRaytracingPipeline() {
     // exchanged between shaders, such as the HitInfo structure in the HLSL code.
     // It is important to keep this value as low as possible as a too high value
     // would result in unnecessary memory consumption and cache trashing.
-    pipeline.SetMaxPayloadSize(29 * sizeof(float) + sizeof(UINT)); // RGB + distance + normal + depth + material info + world position
+    pipeline.SetMaxPayloadSize(7 * sizeof(float) + sizeof(UINT)); // RGB + distance + depth
 
     // Upon hitting a surface, DXR can provide several attributes to the hit. In
     // our sample we just use the barycentric coordinates defined by the weights

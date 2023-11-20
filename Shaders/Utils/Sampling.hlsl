@@ -17,9 +17,53 @@ float rand_2to1(float2 uv)
     return frac(sin(sn) * c);
 }
 
+uint wang_hash(inout uint seed)
+{
+    seed = uint(seed ^ uint(61)) ^ uint(seed >> uint(16));
+    seed *= uint(9);
+    seed = seed ^ (seed >> 4);
+    seed *= uint(0x27d4eb2d);
+    seed = seed ^ (seed >> 15);
+    return seed;
+}
+
+// Generate ith frame b bounce light's random seed
+float2 sobolSeed(const in uint i, const in uint b)
+{
+    float u = sobol(b * 2, grayCode(i));
+    float v = sobol(b * 2 + 1, grayCode(i));
+    return float2(u, v);
+}
+
 float2 randomSeed(const in float2 uv)
 {
     return float2(rand_1to1(uv.x), rand_1to1(uv.y));
+}
+
+float2 CranleyPattersonRotation(float2 seed, float2 rayIndex)
+{
+    uint pseed = uint(
+        uint(rayIndex.x) * uint(1973) +
+        uint(rayIndex.y) * uint(9277) +
+        uint(114514 / 1919) * uint(26699)) | uint(1);
+    
+    float u = float(wang_hash(pseed)) / 4294967296.0;
+    float v = float(wang_hash(pseed)) / 4294967296.0;
+
+    seed.x += u;
+    if (seed.x > 1)
+        seed.x -= 1;
+    if (seed.x < 0)
+        seed.x += 1;
+
+    seed.y += v;
+    if (seed.y > 1)
+        seed.y -= 1;
+    if (seed.y < 0)
+        seed.y += 1;
+
+    return seed;
+
 }
 
 float3 sphereSample(const in float2 seed)
