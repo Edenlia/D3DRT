@@ -33,7 +33,7 @@ open D3DRT.sln and build
 
 Uniform sampling(left), Important sampling(right), using 500ssp: 
 
-![Important sampling](./Imgs/Important sampling.png)
+![Important sampling](./Imgs/Important_sampling.png)
 
 
 
