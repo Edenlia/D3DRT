@@ -161,7 +161,7 @@ float3 Disney_BRDF(float3 L, float3 V, float3 N)
     float Fss = lerp(1.0, Fss90, FL) * lerp(1.0, Fss90, FV);
     float ss = 1.25 * (Fss * (1.0 / (NdotL + NdotV) - 0.5) + 0.5);
     
-    float3 L_diffuse = lerp(Fd, ss, subsurface) * Cdlin / PI;
+    float3 F_diffuse = lerp(Fd, ss, subsurface) * Cdlin / PI;
     
     
     float3 Cspec = specular * lerp(float3(1, 1, 1), Ctint, specularTint);
@@ -174,20 +174,20 @@ float3 Disney_BRDF(float3 L, float3 V, float3 N)
     float FH = SchlickFresnel(LdotH);
     float3 Fs = lerp(Cspec0, float3(1, 1, 1), FH);
     float Gs = smithG_GGX(NdotL, roughness) * smithG_GGX(NdotV, roughness);
-    float3 L_specular = Ds * Fs * Gs; // don't need to / (4 * NdotL * NdotV)
+    float3 F_specular = Ds * Fs * Gs; // don't need to / (4 * NdotL * NdotV)
     
     // Clearcoat
     float Dr = GTR1(NdotH, lerp(0.1, 0.001, clearcoatGloss));
     float Fr = lerp(0.04, 1.0, FH);
     float Gr = smithG_GGX(NdotL, 0.25) * smithG_GGX(NdotV, 0.25);
-    float3 L_clearcoat = Dr * Fr * Gr;
+    float3 F_clearcoat = Dr * Fr * Gr;
     
     // Sheen
     float3 Csheen = lerp(float3(1, 1, 1), Ctint, sheenTint);
     float3 Fsheen = FH * sheen * Csheen;
-    L_diffuse += Fsheen;
-        
-    return L_diffuse * (1.0 - metallic) + L_specular + L_clearcoat * 0.25 * clearcoat;
+    F_diffuse += Fsheen;
+            
+    return F_diffuse * (1.0 - metallic) + F_specular + F_clearcoat * 0.25 * clearcoat;
 }
 
 [shader("closesthit")] 
@@ -239,7 +239,7 @@ export void ClosestHit(inout HitInfo payload, Attributes attrib)
         float2 seed;
         
         // left half of the screen: random seed, right half of the screen: sobol seed
-        if (launchIndex.y < dims.y / 2)
+        if (launchIndex.y < 0 /*dims.y / 2*/)
         {
             seed = float2(attrib.bary.x + ObjectRayDirection().x, attrib.bary.y + ObjectRayDirection().y);
             seed *= frameCount + 1;
@@ -258,7 +258,7 @@ export void ClosestHit(inout HitInfo payload, Attributes attrib)
         float cosI;
         
         // top half of the screen: hemisphere sample, bottom half of the screen: importance sample
-        if (launchIndex.x < dims.x / 2)
+        if (launchIndex.x < 0 /*dims.x / 2*/)
         {
             bounceDir = normalize(hemisphereSample(TBN, seed));
             
@@ -276,7 +276,7 @@ export void ClosestHit(inout HitInfo payload, Attributes attrib)
                         
             float seed1 = rand_2to1(seed);
             // seed1 = 0.1;
-            bounceDir = Disney_BRDF_Sample(seed, seed1, wo, hitNormal, hitTangent, hitBitangent, pdf);
+            bounceDir = Disney_BRDF_Sample(seed, seed1, wo, hitNormal, hitTangent, hitBitangent, pdf);            
             
             float3 wi = bounceDir;
             float3 n = hitNormal;

@@ -134,6 +134,8 @@ float3 Disney_BRDF(float3 L, float3 V, float3 N, float3 X, float3 Y)
     float Fss90 = LdotH * LdotH * roughness;
     float Fss = lerp(1.0, Fss90, FL) * lerp(1.0, Fss90, FV);
     float ss = 1.25 * (Fss * (1 / (NdotL + NdotV) - .5) + .5);
+    
+    float3 F_diffuse = lerp(Fd, ss, subsurface) * Cdlin / PI;
 
     // specular
     float aspect = sqrt(1 - anisotropic * .9);
@@ -145,18 +147,22 @@ float3 Disney_BRDF(float3 L, float3 V, float3 N, float3 X, float3 Y)
     float Gs;
     Gs = smithG_GGX_aniso(NdotL, dot(L, X), dot(L, Y), ax, ay);
     Gs *= smithG_GGX_aniso(NdotV, dot(V, X), dot(V, Y), ax, ay);
+    
+    float3 F_specular = Ds * Fs * Gs;
 
     // sheen
     float3 Fsheen = FH * sheen * Csheen;
+    
+    F_diffuse += Fsheen;
 
     // clearcoat (ior = 1.5 -> F0 = 0.04)
     float Dr = GTR1(NdotH, lerp(.1, .001, clearcoatGloss));
     float Fr = lerp(.04, 1.0, FH);
     float Gr = smithG_GGX(NdotL, .25) * smithG_GGX(NdotV, .25);
+    
+    float3 F_clearcoat = Dr * Fr * Gr;
             
-    return ((1 / PI) * lerp(Fd, ss, subsurface) * Cdlin + Fsheen)
-        * (1 - metallic)
-        + Gs * Fs * Ds + .25 * clearcoat * Gr * Fr * Dr;
+    return F_diffuse * (1 - metallic) + F_specular + .25 * clearcoat * F_clearcoat;
 }
 
 // Without anisotropic
